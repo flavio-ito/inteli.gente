@@ -1,0 +1,2849 @@
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useParams } from "react-router-dom";
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Info } from "lucide-react";
+import MunicipalityName from "@/components/common/MunicipalityName";
+import { MOCK_CITY } from "@/data/mockData";
+import IndicatorsTable from "@/components/city/IndicatorsTable";
+import MunicipalityMap from "@/components/city/MunicipalityMap";
+import MunicipalAssistant from "@/components/city/MunicipalAssistant";
+import { useI18n } from "@/lib/i18n";
+
+const toDisplayName = (name) =>
+  (name || "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(
+      /(^|[\s-])(\p{L})/gu,
+      (_, separator, letter) => `${separator}${letter.toLocaleUpperCase("pt-BR")}`
+    );
+
+const formatPercent = (value) => {
+  if (!Number.isFinite(value)) return "N/D";
+
+  return `${value.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}%`;
+};
+
+const formatNumber = (value) => {
+  if (!Number.isFinite(value)) return "N/D";
+
+  return value.toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+};
+
+const parseNullableNumber = (value) => {
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+};
+
+const isPredictedArbovirusOutbreak = (value) =>
+  value === true ||
+  value === 1 ||
+  ["true", "sim", "1", "surto"].includes(
+    String(value ?? "").trim().toLocaleLowerCase("pt-BR")
+  );
+
+const getArbovirusOutbreakPrediction = (cityData) => {
+  const cityCode = cityData?.municipio_cod_ibge ?? cityData?.code;
+
+  if (String(cityCode) === "3548906") return true;
+
+  return cityData?.previsao_surto_arboviroses ?? cityData?.arboviroses_surto_6_meses ?? false;
+};
+
+const getArbovirusOutbreakStartMonth = (cityData) => {
+  const cityCode = cityData?.municipio_cod_ibge ?? cityData?.code;
+
+  if (String(cityCode) === "3548906") return "janeiro de 2027";
+
+  return (
+    cityData?.previsao_mes_inicio_surto_arboviroses ??
+    cityData?.arboviroses_mes_inicio_surto ??
+    null
+  );
+};
+
+const formatMobileBroadbandCoverage = (value) => {
+  const parsedValue = Number(value);
+
+  if (parsedValue === 1) return "3G";
+  if (parsedValue === 2) return "4G";
+  if (parsedValue === 3) return "3G e 4G";
+
+  return formatNumber(parsedValue);
+};
+
+const getIndicatorName = (indicator, fallback) => indicator?.indicador_nome || fallback;
+
+const getIndicatorSources = (indicator) =>
+  Array.isArray(indicator?.variavel_fontes) ? indicator.variavel_fontes : [];
+
+const getUniqueSources = (sources) =>
+  Array.from(new Set((Array.isArray(sources) ? sources : []).filter(Boolean)));
+
+const CHARACTERIZATION_TITLE_FALLBACKS = {
+  4051: "Número de empresas em parques tecnológicos",
+  4052: "Número de Incubadoras credenciadas - Lei de TIC",
+  4053: "Número de Instituições de Ensino e Pesquisa em PD&I - Lei de TIC",
+  4054: "Número de Centros e/ou Institutos de PD&I - Lei de TIC",
+  4055: "Número de Empresas habilitadas - Lei de TIC",
+  6002: "Incorporação de TICs - Áreas Prioritárias",
+  6011: "Governança Tecnológica - Responsáveis",
+  6017: "Governança de TI - Responsável",
+  6019: "Equipe de TI - Tamanho",
+  4061: "Número de Unidade de Conservação",
+  4063: "Energia Eólica",
+  4064: "Número de Mineradoras",
+  4060: "Número de empresas - Lei do Bem PD&I",
+  4161: "Numero de data centers",
+  6058: "Plano Municipal de Gestão Integrada de Resíduos Sólidos",
+  6059: "Plano municipal de saneamento básico",
+};
+
+const enrichIndicatorItem = (item, indicator) => ({
+  ...item,
+  label: getIndicatorName(indicator, item.label || `Indicador ${item.id || ""}`.trim()),
+  description: indicator?.indicador_descricao || null,
+  variableSources: getIndicatorSources(indicator),
+  topicLevel: indicator?.nivel_topico ?? null,
+});
+
+const parseApiLevel = (value) => {
+  const level = Number(value);
+  if (!Number.isFinite(level)) return undefined;
+  if (level < 1 || level > 7) return undefined;
+  return level;
+};
+
+const INDICADOR_TEXTO_IDS = new Set([
+  "3134",
+  "4041",
+  "3124",
+  "4011",
+  "4031",
+  "4046",
+  "4024",
+  "4025",
+  "4032",
+  "4033",
+  "3004",
+  "4066",
+  "3016",
+  "4010",
+  "3033",
+  "4020",
+  "3107",
+  "4017",
+  "3007",
+  "3039",
+  "4039",
+  "4044",
+  "3103",
+  "3147",
+  "3057",
+  "4030",
+  "6020",
+  "6044",
+  "6056",
+  "6037",
+  "6038",
+]);
+
+const INDICADOR_VALOR_TEXTUAL_IDS = new Set([
+  "3049",
+  "3076",
+  "4012",
+  "4006",
+  "3123",
+  "4040",
+  "3006",
+  "3125",
+  "4004",
+  "3048",
+  "3042",
+  "4014",
+  "3056",
+  "3113",
+  "3043",
+  "3069",
+  "6003",
+  "6005",
+  "6006",
+  "6021",
+  "6024",
+  "6048",
+  "6009",
+  "6054",
+  "6035",
+  "6002",
+  "6011",
+  "6017",
+  "6019",
+]);
+
+const isTextValueIndicator = (id) => {
+  const indicatorId = String(id);
+  return INDICADOR_TEXTO_IDS.has(indicatorId) || INDICADOR_VALOR_TEXTUAL_IDS.has(indicatorId);
+};
+
+const getIndicatorTextValue = (indicator) => {
+  const indicatorId = String(indicator?.indicador_id || "");
+  const fieldName = INDICADOR_VALOR_TEXTUAL_IDS.has(indicatorId)
+    ? "indicador_valor_textual"
+    : INDICADOR_TEXTO_IDS.has(indicatorId)
+      ? "indicador_texto"
+      : null;
+
+  if (!fieldName) return null;
+
+  const textValue = String(indicator?.[fieldName] || "").trim();
+  return textValue || null;
+};
+
+const isUnansweredFormValue = (value) =>
+  String(value || "")
+    .trim()
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") === "sem resposta do formulario";
+
+export const hasUnansweredFormIndicators = (indicatorsById) =>
+  Array.from(INDICADOR_VALOR_TEXTUAL_IDS).every((indicatorId) =>
+    isUnansweredFormValue(
+      indicatorsById?.[indicatorId]?.indicador_valor_textual
+    )
+  );
+
+export const hasAnsweredFormIndicators = (indicatorsById) =>
+  Array.from(INDICADOR_VALOR_TEXTUAL_IDS).some((indicatorId) => {
+    const value = indicatorsById?.[indicatorId]?.indicador_valor_textual;
+    return typeof value === "string" && value.trim() !== "" && !isUnansweredFormValue(value);
+  });
+
+const formatNumericIndicatorFallback = (indicator, formatter = formatNumber) => {
+  const value = indicator?.indicador;
+
+  if (value == null || String(value).trim() === "") return "N/D";
+
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return "N/D";
+
+  return formatter(numericValue);
+};
+
+const formatTextualIndicatorValue = (indicator, fallbackFormatter = formatNumber) =>
+  getIndicatorTextValue(indicator) || formatNumericIndicatorFallback(indicator, fallbackFormatter);
+
+const formatBinaryPossessionValue = (value) => {
+  const numericValue = Number(value);
+
+  if (numericValue === 1) return "Possui";
+  if (numericValue === 0) return "Não Possui";
+
+  return formatNumber(numericValue);
+};
+
+const format5gPossessionValue = (value) => {
+  const numericValue = Number(value);
+
+  if (numericValue === 3) return "Possui";
+  if (numericValue === 0) return "Não Possui";
+
+  return formatNumber(numericValue);
+};
+
+const TABLE_INDICATOR_FORMAT_BY_ID = {
+  3011: "percent",
+  3020: "percent",
+  3021: "percent",
+  3022: "percent",
+  3024: "percent",
+  3028: "percent",
+  3037: "binary",
+  3040: "mobileBroadbandCoverage",
+  3041: "binary",
+  3086: "percent",
+  3110: "percent",
+  3117: "percent",
+  3122: "percent",
+  3127: "percent",
+  3139: "percent",
+  3141: "percent",
+  3145: "percent",
+  4005: "percent",
+  4007: "percent",
+  4016: "percent",
+  4021: "percent",
+  4034: "percent",
+  4035: "percent",
+  4037: "percent",
+  4047: "percent",
+  4065: "5gPossession",
+  4070: "percent",
+};
+
+const formatConfiguredIndicatorValue = (indicator, format = "number", indicatorId = null) => {
+  if (isTextValueIndicator(indicatorId ?? indicator?.indicador_id)) {
+    return formatTextualIndicatorValue(indicator);
+  }
+
+  if (format === "percent") return formatPercent(Number(indicator?.indicador));
+  if (format === "binary") return formatBinaryPossessionValue(indicator?.indicador);
+  if (format === "mobileBroadbandCoverage") {
+    return formatMobileBroadbandCoverage(indicator?.indicador);
+  }
+  if (format === "5gPossession") return format5gPossessionValue(indicator?.indicador);
+
+  return formatNumber(Number(indicator?.indicador));
+};
+
+const buildConfiguredDimensionIndicators = (topicGroups, indicatorsById, defaultFormat = "number") =>
+  topicGroups.flatMap(({ topic, ids, format = defaultFormat }) =>
+    ids.flatMap((id) => {
+      const indicator = indicatorsById[String(id)];
+
+      if (!indicator) return [];
+
+      return [
+        {
+          id: String(id),
+          topic,
+          label: getIndicatorName(indicator, `Indicador ${id}`),
+          indicator: `Indicador ${id}`,
+          value: formatConfiguredIndicatorValue(
+            indicator,
+            TABLE_INDICATOR_FORMAT_BY_ID[String(id)] || format,
+            id
+          ),
+          valueIsText:
+            isTextValueIndicator(id) && Boolean(getIndicatorTextValue(indicator)),
+          level: parseApiLevel(indicator.nivel_maturidade),
+          source: "PostgreSQL",
+        },
+      ];
+    })
+  );
+
+const getDashboardCardFromIndicator = (item) =>
+  item
+    ? {
+        id: item.id,
+        topic: item.topic || "",
+        title: item.label || item.indicator || `Indicador ${item.id || ""}`.trim(),
+        value: item.value ?? "N/D",
+        level: item.level ?? null,
+      }
+    : null;
+
+export const getDashboardHighlights = (items, limit = 3) => {
+  const rankedIndicators = (Array.isArray(items) ? items : [])
+    .map((item, index) => ({
+      item,
+      index,
+      level: Number(item?.level),
+    }))
+    .filter(({ level }) => Number.isFinite(level) && level >= 1 && level <= 7);
+
+  const bestEntries = [...rankedIndicators]
+    .sort((left, right) => right.level - left.level || left.index - right.index)
+    .slice(0, limit);
+  const bestIds = new Set(bestEntries.map(({ item }) => String(item.id)));
+  const worstEntries = [...rankedIndicators]
+    .sort((left, right) => left.level - right.level || left.index - right.index)
+    .filter(
+      ({ item }) =>
+        !isUnansweredFormValue(item.value) &&
+        !bestIds.has(String(item.id))
+    )
+    .slice(0, limit);
+
+  return {
+    best: bestEntries.map(({ item }) => getDashboardCardFromIndicator(item)).filter(Boolean),
+    worst: worstEntries.map(({ item }) => getDashboardCardFromIndicator(item)).filter(Boolean),
+  };
+};
+
+const LEVEL_COLORS = {
+  1: "#A00000",
+  2: "#E23A23",
+  3: "#E27400",
+  4: "#3E8ED0",
+  5: "#1C4F9C",
+  6: "#3F9D00",
+  7: "#375623",
+};
+
+const getLevelColor = (level) => {
+  const safeLevel = Math.max(1, Math.min(7, Math.round(Number(level) || 1)));
+  return LEVEL_COLORS[safeLevel];
+};
+
+const getMaturityTierLabel = (level) => {
+  const parsedLevel = Number(level);
+
+  if (!Number.isFinite(parsedLevel) || parsedLevel < 1 || parsedLevel > 7) {
+    return "Tier não disponível";
+  }
+
+  return parsedLevel <= 2 ? "Preparação" : "Gestão e Governança";
+};
+
+const MaturityTierBadge = ({ level }) => {
+  const parsedLevel = Number(level);
+  const hasLevel = Number.isFinite(parsedLevel) && parsedLevel >= 1 && parsedLevel <= 7;
+  const tierClassName = !hasLevel
+    ? "border-[#d7dfe8] bg-[#f6f8fa] text-[#6b7c93]"
+    : parsedLevel <= 2
+      ? "border-[#efc7c3] bg-[#fff4f2] text-[#b42318]"
+      : "border-[#c9dfbd] bg-[#f4faef] text-[#2f7d14]";
+
+  return (
+    <span
+      className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-none ${tierClassName}`}
+    >
+      {getMaturityTierLabel(level)}
+    </span>
+  );
+};
+
+const MaturityTierBar = ({ level, compact = false, showLabels = true }) => {
+  const parsedLevel = Number(level);
+  const hasLevel = Number.isFinite(parsedLevel) && parsedLevel >= 1 && parsedLevel <= 7;
+  const activeLevel = hasLevel ? Math.round(parsedLevel) : 0;
+  const activeColor = hasLevel ? getLevelColor(activeLevel) : "#D8DDE3";
+
+  const renderSegments = (levels) =>
+    levels.map((segmentLevel) => (
+      <span
+        key={segmentLevel}
+        aria-hidden="true"
+        className={`${compact ? "h-2" : "h-2.5"} flex-1 rounded-sm`}
+        style={{
+          backgroundColor: segmentLevel <= activeLevel ? activeColor : "#D8DDE3",
+        }}
+      />
+    ));
+
+  return (
+    <div className={compact ? "mt-1.5" : "mt-3"}>
+      <div
+        role="img"
+        aria-label={
+          hasLevel
+            ? `Nível de maturidade ${activeLevel} de 7. Preparação: níveis 1 e 2. Gestão e Governança: níveis 3 a 7.`
+            : "Nível de maturidade não disponível. Preparação: níveis 1 e 2. Gestão e Governança: níveis 3 a 7."
+        }
+        className="flex gap-3"
+      >
+        <div className="flex flex-[2] gap-1.5">
+          {renderSegments([1, 2])}
+        </div>
+        <div className={`relative flex flex-[5] gap-1.5 before:absolute before:-left-[7px] before:top-1/2 before:w-px before:-translate-y-1/2 before:bg-[#aeb9c7] ${compact ? "before:h-4" : "before:h-5"}`}>
+          {renderSegments([3, 4, 5, 6, 7])}
+        </div>
+      </div>
+
+      {showLabels && (
+        <div aria-hidden="true" className="mt-1.5 flex gap-3 text-[12px] leading-tight">
+          <span className="flex-[2] text-center font-semibold text-[#5b6f8a]">
+            Preparação
+          </span>
+          <span className="flex-[5] text-center font-semibold text-[#5b6f8a]">
+            Gestão e Governança
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const getMaturityLevelTextColor = (level) => {
+  const parsedLevel = Number(level);
+
+  if (!Number.isFinite(parsedLevel) || parsedLevel < 1 || parsedLevel > 7) {
+    return "#1b2940";
+  }
+
+  if (parsedLevel <= 2) return "#c2410c";
+  if (parsedLevel <= 4) return "#b45309";
+  if (parsedLevel <= 5) return "#2563eb";
+
+  return "#15803d";
+};
+
+const PIB_SHARE_OPTIONS = [
+  { key: "pibAg", label: "Agropecuária", color: "#2AA876" },
+  { key: "pibAp", label: "Administração Pública", color: "#4C6EF5" },
+  { key: "pibInd", label: "Indústria", color: "#F08C00" },
+  { key: "pibSr", label: "Serviços", color: "#D6336C" },
+];
+
+const ARBOVIRUS_DISEASE_OPTIONS = [
+  { value: "dengue", label: "Dengue" },
+  { value: "chikungunya", label: "Chikungunya" },
+  { value: "zika", label: "Zika" },
+];
+
+const ARBOVIRUS_CASES_BY_YEAR = {
+  2023: {
+    dengue: [18, 24, 39, 58, 77, 66, 49, 35, 28, 22, 19, 16],
+    chikungunya: [4, 6, 9, 14, 20, 17, 13, 10, 8, 6, 5, 4],
+    zika: [1, 2, 3, 5, 7, 6, 4, 3, 2, 2, 1, 1],
+  },
+  2024: {
+    dengue: [27, 35, 54, 83, 112, 96, 71, 52, 40, 31, 25, 21],
+    chikungunya: [6, 8, 13, 19, 27, 23, 18, 14, 11, 9, 7, 6],
+    zika: [2, 3, 5, 7, 10, 8, 6, 5, 4, 3, 2, 2],
+  },
+  2025: {
+    dengue: [34, 48, 73, 121, 154, 139, 105, 78, 59, 45, 37, 29],
+    chikungunya: [8, 12, 18, 29, 38, 34, 26, 20, 16, 12, 10, 8],
+    zika: [3, 4, 7, 11, 15, 13, 10, 8, 6, 5, 4, 3],
+  },
+};
+
+const MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+const ARBOVIRUS_SHAP_FACTORS = [
+  { label: "Posição no calendário (cosseno do mês)", valueLabel: "-1", impact: -0.06 },
+  { label: "Temperatura média", valueLabel: "19,05 °C", impact: -0.05 },
+  { label: "Posição no calendário (seno do mês)", valueLabel: "0", impact: -0.04 },
+  { label: "Casos de dengue há 12 meses", valueLabel: "26 casos", impact: -0.03 },
+  { label: "Umidade relativa do ar há 2 meses", valueLabel: "59,74%", impact: 0.02 },
+  { label: "Umidade relativa do ar", valueLabel: "76,4%", impact: -0.02 },
+  { label: "Cobertura calculada da atenção primária", valueLabel: "100%", impact: 0.02 },
+  { label: "Chuva acumulada nos 3 meses anteriores", valueLabel: "2,83 mm", impact: -0.01 },
+  { label: "Casos de dengue há 6 meses", valueLabel: "0 casos", impact: -0.01 },
+  { label: "Incidência de dengue por 100 mil habitantes", valueLabel: "8,87", impact: -0.01 },
+];
+
+const BIOME_LABELS = {
+  0: "Desconhecido",
+  1: "Amazônia",
+  2: "Caatinga",
+  3: "Cerrado",
+  4: "Mata Atlântica",
+  5: "Pampa",
+  6: "Pantanal",
+  7: "Área Marinha",
+};
+
+const INFLUENCE_NETWORK_LABELS = {
+  1: "Grande Metrópole Nacional",
+  2: "Metrópole Nacional",
+  3: "Metrópole",
+  4: "Capital Regional A",
+  5: "Capital Regional B",
+  6: "Capital Regional C",
+  7: "Centro Sub-Regional A",
+  8: "Centro Sub-Regional B",
+  9: "Centro de Zona A",
+  10: "Centro de Zona B",
+  11: "Centro Local",
+};
+
+const ECONOMIC_TOPIC_GROUPS = [
+  { topic: "Agua e Esgoto", ids: [3117, 3127, 3141, 3148] },
+  { topic: "Infraestrutura de conectividade", ids: [3021, 3022, 3040, 3041, 3134, 4035, 4036, 4065] },
+  { topic: "Habitacao", ids: [3020, 4041, 4045] },
+  { topic: "Transporte", ids: [3049, 3076, 3124, 4011, 4012, 4031, 4046] },
+  { topic: "Inovacao", ids: [4024, 4025, 4032, 4033] },
+  { topic: "Servicos On-line da Prefeitura", ids: [3004, 4066] },
+  { topic: "Sistemas e Tecnologia para Gestao Urbana", ids: [3016, 4010] },
+  { topic: "Resíduos Sólidos", ids: [3122] },
+  { topic: "Urbanização das Vias Públicas", ids: [3139, 3145, 4005] },
+  { topic: "Dados Abertos", ids: [3033] },
+];
+
+const SOCIOCULTURAL_TOPIC_GROUPS = [
+  { topic: "Educa\u00e7\u00e3o", ids: [3003, 3011, 3085, 3086, 3115, 4006, 4020, 4034, 4037, 4048] },
+  { topic: "Cultura", ids: [3077, 3107, 3123, 4040] },
+  { topic: "Sa\u00fade", ids: [3006, 3095, 3096, 3125, 4004, 4021, 4049, 4067] },
+  { topic: "Seguran\u00e7a P\u00fablica", ids: [3048, 4016, 4017] },
+  { topic: "Gest\u00e3o de Desastres", ids: [3007, 4042, 4068, 4069] },
+  { topic: "Inclus\u00e3o Digital", ids: [3037, 3039] },
+  { topic: "Inclus\u00e3o Social", ids: [4039, 4043, 4044] },
+  { topic: "Participa\u00e7\u00e3o P\u00fablica", ids: [3103, 3147] },
+];
+
+const ENVIRONMENT_TOPIC_GROUPS = [
+  { topic: "\u00c1gua e Esgoto", ids: [3024, 3028, 3042, 3110, 3128, 4047, 4071] },
+  { topic: "Res\u00edduos S\u00f3lidos", ids: [4007, 4014] },
+  { topic: "\u00c1reas Verdes", ids: [3057, 4030] },
+  { topic: "Qualidade do Ar", ids: [3056, 3113] },
+  { topic: "Energia", ids: [3043, 3069] },
+  { topic: "Gest\u00e3o de Desastres", ids: [4070] },
+];
+
+const INSTITUTIONAL_TOPIC_GROUPS = [
+  { topic: "Estrat\u00e9gia", ids: [6003, 6005, 6006] },
+  { topic: "Infraestrutura de Hw e Sw", ids: [6021, 6024] },
+  { topic: "Servi\u00e7os e Aplica\u00e7\u00f5es", ids: [6044, 6048, 6056] },
+  { topic: "Monitoramento", ids: [6009, 6054, 6055] },
+  { topic: "Dados Abertos", ids: [6035, 6037, 6038] },
+];
+
+const DIMENSION_TOPIC_GROUPS = {
+  economica: ECONOMIC_TOPIC_GROUPS,
+  meio_ambiente: ENVIRONMENT_TOPIC_GROUPS,
+  sociocultural: SOCIOCULTURAL_TOPIC_GROUPS,
+  capacidades_institucionais: INSTITUTIONAL_TOPIC_GROUPS,
+};
+
+const buildDimensionIndicatorRefs = (topicGroups) =>
+  Array.from(new Set(topicGroups.flatMap(({ ids }) => ids)));
+
+const DIMENSION_INDICATOR_REFS = {
+  d1: [3025, 4056, 4057, 4058, 4059],
+  economica: buildDimensionIndicatorRefs(ECONOMIC_TOPIC_GROUPS),
+  meio_ambiente: buildDimensionIndicatorRefs(ENVIRONMENT_TOPIC_GROUPS),
+  sociocultural: buildDimensionIndicatorRefs(SOCIOCULTURAL_TOPIC_GROUPS),
+  capacidades_institucionais: buildDimensionIndicatorRefs(INSTITUTIONAL_TOPIC_GROUPS),
+};
+
+const MAIN_DIMENSION_CODES = [
+  "economica",
+  "meio_ambiente",
+  "sociocultural",
+  "capacidades_institucionais",
+];
+
+const DIMENSION_TOPIC_INDICATOR_WEIGHTS = {
+  economica: {
+    3117: 3,
+    3127: 3,
+    3141: 3,
+    3148: 2,
+    3033: 1,
+    3020: 3,
+    4041: 3,
+    4045: 3,
+    3021: 3,
+    3022: 3,
+    3040: 2,
+    3041: 2,
+    3134: 2,
+    4035: 2,
+    4036: 1,
+    4065: 2,
+    4024: 3,
+    4025: 3,
+    4032: 3,
+    4033: 3,
+    3122: 1,
+    3004: 2,
+    4066: 2,
+    3016: 1,
+    4010: 2,
+    3049: 1,
+    3076: 1,
+    3124: 2,
+    4011: 1,
+    4012: 1,
+    4031: 3,
+    4046: 2,
+    3139: 3,
+    3145: 3,
+    4005: 3,
+  },
+  meio_ambiente: {
+    3024: 3,
+    3028: 2,
+    3042: 1,
+    3110: 3,
+    3128: 3,
+    4047: 3,
+    4071: 3,
+    3057: 2,
+    4030: 3,
+    3043: 1,
+    3069: 1,
+    4070: 3,
+    3056: 1,
+    3113: 1,
+    4007: 3,
+    4014: 1,
+  },
+  sociocultural: {
+    3003: 2,
+    3011: 3,
+    3085: 3,
+    3086: 3,
+    3115: 3,
+    4006: 2,
+    4020: 3,
+    4034: 3,
+    4037: 3,
+    4048: 3,
+    3077: 3,
+    3107: 2,
+    3123: 1,
+    4040: 1,
+    3006: 1,
+    3095: 3,
+    3096: 3,
+    3125: 1,
+    4004: 1,
+    4021: 3,
+    4049: 3,
+    4067: 3,
+    3048: 1,
+    4016: 3,
+    4017: 3,
+    3007: 2,
+    4042: 1,
+    4068: 3,
+    4069: 3,
+    3037: 3,
+    3039: 3,
+    4039: 2,
+    4043: 2,
+    4044: 2,
+    3103: 2,
+    3147: 1,
+  },
+  capacidades_institucionais: {
+    6035: 3,
+    6037: 2,
+    6038: 2,
+    6003: 3,
+    6005: 3,
+    6006: 3,
+    6021: 2,
+    6024: 2,
+    6009: 2,
+    6054: 2,
+    6055: 2,
+    6056: 3,
+    6044: 3,
+    6048: 2,
+  },
+};
+
+const calculateWeightedTopicLevel = (indicatorIds, indicatorsById, indicatorWeights = {}) => {
+  const weightedLevels = indicatorIds
+    .map((indicatorId) => {
+      const level = parseApiLevel(indicatorsById[String(indicatorId)]?.nivel_maturidade);
+      const weight = Number(indicatorWeights[String(indicatorId)] ?? 1);
+
+      if (!Number.isFinite(level) || !Number.isFinite(weight) || weight <= 0) return null;
+
+      return { level, weight };
+    })
+    .filter(Boolean);
+
+  if (weightedLevels.length === 0) return null;
+
+  const totalWeight = weightedLevels.reduce((sum, item) => sum + item.weight, 0);
+  const weightedSum = weightedLevels.reduce((sum, item) => sum + item.level * item.weight, 0);
+
+  return Math.round(weightedSum / totalWeight);
+};
+
+const calculateDimensionLevelFromTopicLevels = (dimensionCode, indicatorsById) => {
+  const topicGroups = DIMENSION_TOPIC_GROUPS[dimensionCode] || [];
+  const indicatorWeights = DIMENSION_TOPIC_INDICATOR_WEIGHTS[dimensionCode] || {};
+  const topicLevels = topicGroups
+    .map((topicGroup) =>
+      calculateWeightedTopicLevel(topicGroup.ids, indicatorsById, indicatorWeights)
+    )
+    .filter((level) => Number.isFinite(level));
+
+  if (topicLevels.length === 0) return null;
+
+  const averageTopicLevel =
+    topicLevels.reduce((sum, level) => sum + level, 0) / topicLevels.length;
+
+  return Math.min(7, Math.max(0, Math.round(averageTopicLevel)));
+};
+
+const calculateDimensionScoreFromIndicators = (items) => {
+  const levels = items
+    .map((item) => Number(item.level))
+    .filter((level) => Number.isFinite(level) && level >= 1 && level <= 7);
+
+  if (levels.length === 0) return null;
+
+  const averageLevel = levels.reduce((sum, level) => sum + level, 0) / levels.length;
+  return (averageLevel / 7) * 100;
+};
+
+const CitySearchDetails = () => {
+  const { cityFriendlyName } = useParams();
+  const location = useLocation();
+  const { language, t } = useI18n();
+
+  const [cityData, setCityData] = useState(location.state || null);
+  const [loading, setLoading] = useState(!location.state);
+  const [error, setError] = useState("");
+  const [selectedDimension, setSelectedDimension] = useState(null);
+  const [detailsView, setDetailsView] = useState("indices");
+  const [selectedCharacterization, setSelectedCharacterization] = useState("sociodemografica");
+  const [selectedIntelligentView, setSelectedIntelligentView] = useState("sociodemografica");
+  const [indicatorsById, setIndicatorsById] = useState({});
+  const [indicatorsLoading, setIndicatorsLoading] = useState(true);
+  const [indicadorDesigualdadeRendaGini, setIndicadorDesigualdadeRendaGini] = useState(null);
+  const [indicadorPibAg, setIndicadorPibAg] = useState(null);
+  const [indicadorPibInd, setIndicadorPibInd] = useState(null);
+  const [indicadorPibSrv, setIndicadorPibSrv] = useState(null);
+  const [indicadorPibAp, setIndicadorPibAp] = useState(null);
+  const [giniSeries, setGiniSeries] = useState([]);
+  const [giniLoading, setGiniLoading] = useState(false);
+  const [pibSeries, setPibSeries] = useState([]);
+  const [pibLoading, setPibLoading] = useState(false);
+  const [selectedPibShareKey, setSelectedPibShareKey] = useState("pibAg");
+  const [selectedArbovirusDisease, setSelectedArbovirusDisease] = useState("dengue");
+  const [selectedArbovirusYear, setSelectedArbovirusYear] = useState("2025");
+  const [selectedComparisonTopic, setSelectedComparisonTopic] = useState("saude-vigilancia");
+  const [showArbovirusExplanation, setShowArbovirusExplanation] = useState(false);
+  const [sonarProjects, setSonarProjects] = useState([]);
+  const [sonarProjectsLoading, setSonarProjectsLoading] = useState(false);
+  const [sonarProjectsError, setSonarProjectsError] = useState("");
+  const arbovirusExplanationRef = useRef(null);
+  const [dimensionScoreSummary, setDimensionScoreSummary] = useState(null);
+  const [dimensionComparisonsByKey, setDimensionComparisonsByKey] = useState({});
+  const [dimensionComparisonsLoadingByKey, setDimensionComparisonsLoadingByKey] = useState({});
+
+  const clearIndicatorState = () => {
+    setIndicatorsById({});
+    setIndicadorDesigualdadeRendaGini(null);
+    setIndicadorPibAg(null);
+    setIndicadorPibInd(null);
+    setIndicadorPibSrv(null);
+    setIndicadorPibAp(null);
+  };
+
+  const revealArbovirusExplanation = () => {
+    setShowArbovirusExplanation(true);
+    window.setTimeout(() => {
+      arbovirusExplanationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  };
+
+  useEffect(() => {
+    if (location.state) return;
+
+    setLoading(true);
+    setError("");
+
+    fetch(`/api/municipios/slug/${cityFriendlyName}`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Não foi possível carregar os dados do município.");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setCityData(data);
+      })
+      .catch((err) => {
+        console.error("Erro ao buscar município:", err);
+        setError("Erro ao carregar município.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [cityFriendlyName, location.state]);
+
+  useEffect(() => {
+    const municipioCodIbge = cityData?.municipio_cod_ibge;
+
+    if (!municipioCodIbge) {
+      clearIndicatorState();
+      setIndicatorsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIndicatorsLoading(true);
+    clearIndicatorState();
+
+    fetch(`/api/municipios/${municipioCodIbge}/indicadores`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Nao foi possivel carregar os indicadores do municipio.");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+
+        const indicadores = Array.isArray(data?.indicadores) ? data.indicadores : [];
+        const byId = new Map(indicadores.map((item) => [String(item.indicador_id), item]));
+        setIndicatorsById(Object.fromEntries(byId));
+
+        setIndicadorDesigualdadeRendaGini(byId.get("3025") || null);
+        setIndicadorPibAg(byId.get("4056") || null);
+        setIndicadorPibInd(byId.get("4057") || null);
+        setIndicadorPibSrv(byId.get("4058") || null);
+        setIndicadorPibAp(byId.get("4059") || null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Erro ao buscar indicadores do municipio:", err);
+        clearIndicatorState();
+      })
+      .finally(() => {
+        if (!cancelled) setIndicatorsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cityData?.municipio_cod_ibge]);
+
+  useEffect(() => {
+    const municipioCodIbge = cityData?.municipio_cod_ibge;
+    const prediction = getArbovirusOutbreakPrediction(cityData);
+
+    setSonarProjects([]);
+    setSonarProjectsError("");
+
+    if (!municipioCodIbge || isPredictedArbovirusOutbreak(prediction)) {
+      setSonarProjectsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setSonarProjectsLoading(true);
+
+    fetch(`/api/sonar-municipal/${municipioCodIbge}/projetos-arboviroses`, {
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Não foi possível consultar o Sonar Municipal.");
+        return response.json();
+      })
+      .then((data) => setSonarProjects(Array.isArray(data?.projetos) ? data.projetos : []))
+      .catch((requestError) => {
+        if (requestError.name !== "AbortError") {
+          console.error("Erro ao consultar projetos de lei:", requestError);
+          setSonarProjectsError("Não foi possível carregar os projetos de lei neste momento.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSonarProjectsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [
+    cityData?.municipio_cod_ibge,
+    cityData?.code,
+    cityData?.previsao_surto_arboviroses,
+    cityData?.arboviroses_surto_6_meses,
+  ]);
+
+  useEffect(() => {
+    const municipioCodIbge = cityData?.municipio_cod_ibge;
+    const dimensionEntries = Object.entries(DIMENSION_INDICATOR_REFS).filter(
+      ([, indicatorRefs]) => indicatorRefs.length > 0
+    );
+
+    if (!municipioCodIbge || dimensionEntries.length === 0) {
+      setDimensionComparisonsByKey({});
+      setDimensionComparisonsLoadingByKey({});
+      return;
+    }
+
+    let cancelled = false;
+
+    setDimensionComparisonsByKey({});
+    setDimensionComparisonsLoadingByKey(
+      Object.fromEntries(dimensionEntries.map(([dimensionKey]) => [dimensionKey, true]))
+    );
+
+    dimensionEntries.forEach(([dimensionKey, indicatorRefs]) => {
+      const query = indicatorRefs.join(",");
+
+      fetch(`/api/municipios/${municipioCodIbge}/comparativo-semelhantes?limit=6&indicadores=${query}`)
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error("Nao foi possivel carregar o comparativo regional.");
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (cancelled) return;
+
+          const list = Array.isArray(data?.comparativo) ? data.comparativo : [];
+          const normalized = list.map((item) => ({
+            city: toDisplayName(item.municipio_nome),
+            score: Number(item.score) || 0,
+            isCurrent: Boolean(item.is_current),
+            distanceKm: item.distancia_km == null ? null : Number(item.distancia_km),
+            similarityScore:
+              item.similaridade_score == null ? null : Number(item.similaridade_score),
+          }));
+
+          setDimensionComparisonsByKey((current) => ({
+            ...current,
+            [dimensionKey]: normalized,
+          }));
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          console.error("Erro ao buscar comparativo regional:", err);
+          setDimensionComparisonsByKey((current) => ({
+            ...current,
+            [dimensionKey]: [],
+          }));
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setDimensionComparisonsLoadingByKey((current) => ({
+            ...current,
+            [dimensionKey]: false,
+          }));
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cityData?.municipio_cod_ibge]);
+
+  useEffect(() => {
+    const municipioCodIbge = cityData?.municipio_cod_ibge;
+    const indicatorRefs = selectedDimension
+      ? DIMENSION_INDICATOR_REFS[selectedDimension] || []
+      : [];
+
+    if (!municipioCodIbge || indicatorRefs.length === 0) {
+      setDimensionScoreSummary(null);
+      return;
+    }
+
+    let cancelled = false;
+    const query = indicatorRefs.join(",");
+
+    fetch(`/api/municipios/${municipioCodIbge}/dimensao/resumo-pontuacao?indicadores=${query}`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Nao foi possivel carregar as medias da dimensao.");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+
+        setDimensionScoreSummary({
+          regional: data?.media_regional == null ? null : Number(data.media_regional),
+          national: data?.media_nacional == null ? null : Number(data.media_nacional),
+          regionalCount: data?.municipios_regiao == null ? 0 : Number(data.municipios_regiao),
+          nationalCount: data?.municipios_nacional == null ? 0 : Number(data.municipios_nacional),
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Erro ao buscar medias da dimensao:", err);
+        setDimensionScoreSummary(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cityData?.municipio_cod_ibge, selectedDimension]);
+
+  useEffect(() => {
+    const municipioCodIbge = cityData?.municipio_cod_ibge;
+
+    if (!municipioCodIbge) {
+      setPibSeries([]);
+      setPibLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPibLoading(true);
+
+    const fetchSerie = async (sigla) => {
+      const response = await fetch(`/api/municipios/${municipioCodIbge}/variaveis/${sigla}/serie`);
+      if (!response.ok) {
+        throw new Error(`Nao foi possivel carregar a serie ${sigla}.`);
+      }
+      const data = await response.json();
+      return Array.isArray(data?.serie) ? data.serie : [];
+    };
+
+    const normalizeSerie = (serie) =>
+      serie
+        .map((item) => ({
+          ano: Number(item.ano),
+          valor: parseNullableNumber(item.valor),
+          mediaRegional: parseNullableNumber(item.media_regional),
+          mediaNacional: parseNullableNumber(item.media_nacional),
+        }))
+        .filter(
+          (item) =>
+            Number.isFinite(item.ano) &&
+            (Number.isFinite(item.valor) ||
+              Number.isFinite(item.mediaRegional) ||
+              Number.isFinite(item.mediaNacional))
+        );
+
+    Promise.allSettled([
+      fetchSerie("PIB_AG"),
+      fetchSerie("PIB_AP"),
+      fetchSerie("PIB_IND"),
+      fetchSerie("PIB_SR"),
+    ])
+      .then(async ([ag, ap, ind, sr]) => {
+        if (cancelled) return;
+
+        // Alguns bancos usam PIB_SRV em vez de PIB_SR.
+        let servicosResult = sr;
+        if (
+          servicosResult.status !== "fulfilled" ||
+          !Array.isArray(servicosResult.value) ||
+          servicosResult.value.length === 0
+        ) {
+          try {
+            const fallbackSrv = await fetchSerie("PIB_SRV");
+            servicosResult = { status: "fulfilled", value: fallbackSrv };
+          } catch {
+            servicosResult = { status: "rejected", reason: new Error("Serie PIB de servicos indisponivel") };
+          }
+        }
+
+        const seriesByKey = {
+          pibAg: ag.status === "fulfilled" ? normalizeSerie(ag.value) : [],
+          pibAp: ap.status === "fulfilled" ? normalizeSerie(ap.value) : [],
+          pibInd: ind.status === "fulfilled" ? normalizeSerie(ind.value) : [],
+          pibSr: servicosResult.status === "fulfilled" ? normalizeSerie(servicosResult.value) : [],
+        };
+
+        const years = new Set();
+        Object.values(seriesByKey).forEach((serie) => {
+          serie.forEach((item) => years.add(item.ano));
+        });
+
+        if (years.size === 0) {
+          setPibSeries([]);
+          return;
+        }
+
+        const mapByYear = new Map();
+        [...years]
+          .sort((a, b) => a - b)
+          .forEach((year) => {
+            mapByYear.set(year, {
+              ano: String(year),
+              pibAg: null,
+              pibAgRegional: null,
+              pibAgNacional: null,
+              pibAp: null,
+              pibApRegional: null,
+              pibApNacional: null,
+              pibInd: null,
+              pibIndRegional: null,
+              pibIndNacional: null,
+              pibSr: null,
+              pibSrRegional: null,
+              pibSrNacional: null,
+            });
+          });
+
+        seriesByKey.pibAg.forEach((item) => {
+          mapByYear.get(item.ano).pibAg = item.valor;
+          mapByYear.get(item.ano).pibAgRegional = item.mediaRegional;
+          mapByYear.get(item.ano).pibAgNacional = item.mediaNacional;
+        });
+        seriesByKey.pibAp.forEach((item) => {
+          mapByYear.get(item.ano).pibAp = item.valor;
+          mapByYear.get(item.ano).pibApRegional = item.mediaRegional;
+          mapByYear.get(item.ano).pibApNacional = item.mediaNacional;
+        });
+        seriesByKey.pibInd.forEach((item) => {
+          mapByYear.get(item.ano).pibInd = item.valor;
+          mapByYear.get(item.ano).pibIndRegional = item.mediaRegional;
+          mapByYear.get(item.ano).pibIndNacional = item.mediaNacional;
+        });
+        seriesByKey.pibSr.forEach((item) => {
+          mapByYear.get(item.ano).pibSr = item.valor;
+          mapByYear.get(item.ano).pibSrRegional = item.mediaRegional;
+          mapByYear.get(item.ano).pibSrNacional = item.mediaNacional;
+        });
+
+        setPibSeries(Array.from(mapByYear.values()));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Erro ao buscar series PIB:", err);
+        setPibSeries([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setPibLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cityData?.municipio_cod_ibge]);
+
+  const giniDomain = (() => {
+    if (!giniSeries.length) return [0, 1];
+
+    const values = giniSeries
+      .flatMap((item) => [item.valor, item.mediaRegional, item.mediaNacional])
+      .filter((value) => Number.isFinite(value));
+
+    if (values.length === 0) return [0, 1];
+
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+
+    const minSpan = 0.08;
+    const padding = 0.02;
+    const span = Math.max(maxValue - minValue, minSpan);
+    const center = (minValue + maxValue) / 2;
+
+    const lower = Math.max(0, center - span / 2 - padding);
+    const upper = Math.min(1, center + span / 2 + padding);
+
+    return [Number(lower.toFixed(3)), Number(upper.toFixed(3))];
+  })();
+
+  const selectedPibShareOption =
+    PIB_SHARE_OPTIONS.find((option) => option.key === selectedPibShareKey) || PIB_SHARE_OPTIONS[0];
+  const selectedPibRegionalKey = `${selectedPibShareOption.key}Regional`;
+  const selectedPibNacionalKey = `${selectedPibShareOption.key}Nacional`;
+
+  useEffect(() => {
+    const municipioCodIbge = cityData?.municipio_cod_ibge;
+
+    if (!municipioCodIbge) {
+      setGiniSeries([]);
+      setGiniLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setGiniLoading(true);
+
+    fetch(`/api/municipios/${municipioCodIbge}/variaveis/GINI/serie`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Nao foi possivel carregar a serie do GINI.");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+
+        const serie = Array.isArray(data?.serie) ? data.serie : [];
+        const normalized = serie
+          .map((item) => ({
+            ano: Number(item.ano),
+            valor: parseNullableNumber(item.valor),
+            mediaRegional: parseNullableNumber(item.media_regional),
+            mediaNacional: parseNullableNumber(item.media_nacional),
+          }))
+          .filter(
+            (item) =>
+              Number.isFinite(item.ano) &&
+              (Number.isFinite(item.valor) ||
+                Number.isFinite(item.mediaRegional) ||
+                Number.isFinite(item.mediaNacional))
+          )
+          .sort((a, b) => a.ano - b.ano);
+
+        if (normalized.length <= 1) {
+          setGiniSeries(
+            normalized.map((item) => ({
+              ano: String(item.ano),
+              valor: item.valor,
+              mediaRegional: item.mediaRegional,
+              mediaNacional: item.mediaNacional,
+              estimado: false,
+            }))
+          );
+          return;
+        }
+
+        const expandedSeries = [];
+
+        for (let i = 0; i < normalized.length - 1; i += 1) {
+          const current = normalized[i];
+          const next = normalized[i + 1];
+          const gap = next.ano - current.ano;
+
+          expandedSeries.push({
+            ano: String(current.ano),
+            valor: current.valor,
+            mediaRegional: current.mediaRegional,
+            mediaNacional: current.mediaNacional,
+            estimado: false,
+          });
+
+          if (gap > 1 && Number.isFinite(current.valor) && Number.isFinite(next.valor)) {
+            for (let step = 1; step < gap; step += 1) {
+              const ratio = step / gap;
+              const interpolatedValue =
+                current.valor + (next.valor - current.valor) * ratio;
+
+              expandedSeries.push({
+                ano: String(current.ano + step),
+                valor: Number(interpolatedValue.toFixed(4)),
+                mediaRegional: null,
+                mediaNacional: null,
+                estimado: true,
+              });
+            }
+          }
+        }
+
+        const last = normalized[normalized.length - 1];
+        expandedSeries.push({
+          ano: String(last.ano),
+          valor: last.valor,
+          mediaRegional: last.mediaRegional,
+          mediaNacional: last.mediaNacional,
+          estimado: false,
+        });
+
+        setGiniSeries(expandedSeries);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Erro ao buscar serie GINI:", err);
+        setGiniSeries([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setGiniLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cityData?.municipio_cod_ibge]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-muted-foreground">
+        Carregando município...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-red-600">
+        {error}
+      </div>
+    );
+  }
+
+  if (!cityData) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-red-600">
+        Município não encontrado.
+      </div>
+    );
+  }
+
+  const city = {
+    ...MOCK_CITY,
+    name: cityData.municipio_nome || MOCK_CITY.name,
+    stateName: cityData.estado_nome || MOCK_CITY.stateName,
+    stateSigla: cityData.estado_sigla || "",
+    codIbge: cityData.municipio_cod_ibge || null,
+    region: cityData.municipio_regiao || "",
+  };
+  const arbovirusOutbreakPrediction = getArbovirusOutbreakPrediction(cityData);
+  const hasPredictedArbovirusOutbreak =
+    isPredictedArbovirusOutbreak(arbovirusOutbreakPrediction);
+  const arbovirusOutbreakStartMonth = getArbovirusOutbreakStartMonth(cityData);
+  const arbovirusCasesSeries = MONTH_LABELS.map((month, index) => ({
+    month,
+    casos:
+      ARBOVIRUS_CASES_BY_YEAR[selectedArbovirusYear]?.[selectedArbovirusDisease]?.[index] ?? 0,
+  }));
+  const selectedArbovirusDiseaseLabel =
+    ARBOVIRUS_DISEASE_OPTIONS.find(({ value }) => value === selectedArbovirusDisease)?.label ||
+    "Doença";
+  const arbovirusTotalCases = arbovirusCasesSeries.reduce((sum, item) => sum + item.casos, 0);
+  const arbovirusPeakCases = Math.max(...arbovirusCasesSeries.map((item) => item.casos));
+  const nearbyMunicipalityComparisonsByTopic = {
+    "saude-vigilancia": [
+      { label: `Casos de ${selectedArbovirusDiseaseLabel} no ano`, value: arbovirusTotalCases, median: Math.round(arbovirusTotalCases * 0.76), unit: "casos", percentile: 78, higherIsBetter: false },
+      { label: "Pico mensal de casos", value: arbovirusPeakCases, median: Math.round(arbovirusPeakCases * 0.82), unit: "casos", percentile: 71, higherIsBetter: false },
+      { label: "Cobertura de atenção primária", value: 92.4, median: 86.1, unit: "%", percentile: 68, higherIsBetter: true },
+      { label: "Cobertura vacinal contra febre amarela", value: 84.7, median: 81.3, unit: "%", percentile: 61, higherIsBetter: true },
+    ],
+    contexto: [
+      { label: "Densidade populacional", value: 264.3, median: 187.8, unit: "hab./km²", percentile: 73, higherIsBetter: false },
+      { label: "População em área urbana", value: 96.2, median: 91.4, unit: "%", percentile: 66, higherIsBetter: true },
+      { label: "Renda domiciliar per capita", value: 1842, median: 1560, unit: "R$", percentile: 72, higherIsBetter: true },
+      { label: "Índice de vulnerabilidade social", value: 0.22, median: 0.29, unit: "", percentile: 69, higherIsBetter: false },
+    ],
+    saneamento: [
+      { label: "População com abastecimento de água", value: 98.1, median: 94.5, unit: "%", percentile: 86, higherIsBetter: true },
+      { label: "População com coleta de esgoto", value: 96.7, median: 91.2, unit: "%", percentile: 89, higherIsBetter: true },
+      { label: "Esgoto coletado e tratado", value: 88.4, median: 81.7, unit: "%", percentile: 76, higherIsBetter: true },
+      { label: "Cobertura da coleta de resíduos", value: 99.2, median: 96.8, unit: "%", percentile: 82, higherIsBetter: true },
+    ],
+  };
+  const nearbyMunicipalityComparisons =
+    nearbyMunicipalityComparisonsByTopic[selectedComparisonTopic] ||
+    nearbyMunicipalityComparisonsByTopic["saude-vigilancia"];
+
+  const indicatorsByDimension = {
+    d1: [
+      ...(indicadorDesigualdadeRendaGini
+        ? [
+            {
+              id: "3025",
+              topic: "Desigualdade de renda",
+              label: getIndicatorName(indicadorDesigualdadeRendaGini, "Indicador 3025"),
+              indicator: "Indicador = GINI",
+              value: formatNumber(Number(indicadorDesigualdadeRendaGini.indicador)),
+              level: parseApiLevel(indicadorDesigualdadeRendaGini.nivel_maturidade),
+              source: "IBGE · PostgreSQL",
+            },
+          ]
+        : []),
+      ...(indicadorPibAg
+        ? [
+            {
+              id: "4056",
+              topic: "PIB",
+              label: getIndicatorName(indicadorPibAg, "Indicador 4056"),
+              indicator: "Indicador = PIB_AG",
+              value: formatNumber(Number(indicadorPibAg.indicador)),
+              level: parseApiLevel(indicadorPibAg.nivel_maturidade),
+              source: "IBGE · PostgreSQL",
+            },
+          ]
+        : []),
+      ...(indicadorPibInd
+        ? [
+            {
+              id: "4057",
+              topic: "PIB",
+              label: getIndicatorName(indicadorPibInd, "Indicador 4057"),
+              indicator: "Indicador = PIB_IND",
+              value: formatNumber(Number(indicadorPibInd.indicador)),
+              level: parseApiLevel(indicadorPibInd.nivel_maturidade),
+              source: "IBGE · PostgreSQL",
+            },
+          ]
+        : []),
+      ...(indicadorPibSrv
+        ? [
+            {
+              id: "4058",
+              topic: "PIB",
+              label: getIndicatorName(indicadorPibSrv, "Indicador 4058"),
+              indicator: "Indicador = PIB_SRV",
+              value: formatNumber(Number(indicadorPibSrv.indicador)),
+              level: parseApiLevel(indicadorPibSrv.nivel_maturidade),
+              source: "IBGE · PostgreSQL",
+            },
+          ]
+        : []),
+      ...(indicadorPibAp
+        ? [
+            {
+              id: "4059",
+              topic: "PIB",
+              label: getIndicatorName(indicadorPibAp, "Indicador 4059"),
+              indicator: "Indicador = PIB_AP",
+              value: formatNumber(Number(indicadorPibAp.indicador)),
+              level: parseApiLevel(indicadorPibAp.nivel_maturidade),
+              source: "IBGE · PostgreSQL",
+            },
+          ]
+        : []),
+    ],
+    economica: buildConfiguredDimensionIndicators(ECONOMIC_TOPIC_GROUPS, indicatorsById),
+    meio_ambiente: buildConfiguredDimensionIndicators(ENVIRONMENT_TOPIC_GROUPS, indicatorsById),
+    sociocultural: buildConfiguredDimensionIndicators(SOCIOCULTURAL_TOPIC_GROUPS, indicatorsById),
+    capacidades_institucionais: buildConfiguredDimensionIndicators(INSTITUTIONAL_TOPIC_GROUPS, indicatorsById),
+  };
+
+  const rawIndicators = selectedDimension
+    ? indicatorsByDimension[selectedDimension] || []
+    : [];
+  const indicators = rawIndicators.map((item) =>
+    enrichIndicatorItem(item, indicatorsById[String(item.id)])
+  );
+  const selectedDimensionScore = calculateDimensionScoreFromIndicators(indicators);
+  const pdfIndicators = selectedDimension
+    ? indicators
+    : [];
+  const dashboardHighlights = getDashboardHighlights(indicators);
+  const characterizationSections = [
+    {
+      id: "sociodemografica",
+      title: "Caracterização Sociodemográfica",
+      rows: [],
+    },
+    {
+      id: "territorio-ambiente",
+      title: "Caracterização Território e Ambiente",
+      rows: [],
+    },
+    {
+      id: "transformacao-digital",
+      title: "Caracterização Transformação Digital",
+      rows: [],
+    },
+    {
+      id: "institucional",
+      title: "Caracterização Institucional",
+      rows: [],
+    },
+  ];
+  const intelligentViewSections = [
+    {
+      id: "sociodemografica",
+      title: "Arboviroses",
+      rows: [],
+    },
+    {
+      id: "territorio-ambiente",
+      title: "Alzheimer",
+      rows: [],
+    },
+    {
+      id: "transformacao-digital",
+      title: "Veiculação Hídrica",
+      rows: [],
+    },
+  ];
+  const activeSections = detailsView === "visao-inteligente"
+    ? intelligentViewSections
+    : characterizationSections;
+  const selectedSection = detailsView === "visao-inteligente"
+    ? selectedIntelligentView
+    : selectedCharacterization;
+  const setSelectedSection = detailsView === "visao-inteligente"
+    ? setSelectedIntelligentView
+    : setSelectedCharacterization;
+  const activeCharacterization =
+    activeSections.find((section) => section.id === selectedSection) ||
+    activeSections[0];
+  const legacyTerritoryEnvironmentCards = [
+    { title: "Empregos em turismo", value: "N/D" },
+    { title: "Unidades de Conservação", value: "N/D" },
+    { title: "Bioma", value: "N/D" },
+    { title: "Energia Eólica", value: "N/D" },
+    { title: "Número de Mineradoras", value: "N/D" },
+  ];
+  const legacyDigitalTransformationCards = [
+    {
+      title: "Número de campus de Institutos e Universidades Federais",
+      value: "N/D",
+    },
+    {
+      title: "Número de empresas em parques tecnológicos",
+      value: "N/D",
+    },
+    {
+      title: "Número de Incubadoras credenciadas - Lei de TIC",
+      value: "N/D",
+    },
+    {
+      title: "Número de Instituições de Ensino e Pesquisa em PD&I - Lei de TIC",
+      value: "N/D",
+    },
+    {
+      title: "Número de Centros e/ou Institutos de PD&I - Lei de TIC",
+      value: "N/D",
+    },
+    {
+      title: "Número de Empresas habilitadas - Lei de TIC",
+      value: "N/D",
+    },
+    {
+      title: "Número de empresas - Lei do Bem PD&I",
+      value: "N/D",
+    },
+    {
+      title: "Numero de data centers",
+      value: "N/D",
+    },
+    {
+      title: "Empregos em TIC",
+      value: "N/D",
+    },
+    {
+      title: "Empresas de TICs no municipio",
+      value: "N/D",
+    },
+  ];
+  const legacyInstitutionalCards = [
+    { title: "Incorporação de TICs - Áreas Prioritárias", value: "N/D" },
+    { title: "Governança Tecnológica - Responsáveis", value: "N/D" },
+    { title: "Governança de TI - Responsável", value: "N/D" },
+    { title: "Equipe de TI - Tamanho", value: "N/D" },
+    { title: "Estrutura Organizacional de TIC", value: "N/D" },
+    { title: "Atualização do Plano Diretor", value: "N/D" },
+    {
+      title: "Plano Municipal de Gestão Integrada de Resíduos Sólidos",
+      value: "N/D",
+    },
+    { title: "Plano municipal de saneamento básico", value: "N/D" },
+  ];
+  void legacyTerritoryEnvironmentCards;
+  void legacyDigitalTransformationCards;
+  void legacyInstitutionalCards;
+
+  const getCharacterizationCardById = (id, options = {}) => {
+    const indicator = indicatorsById[String(id)];
+    const textValue = getIndicatorTextValue(indicator);
+    const rawValue = Number(indicator?.indicador);
+    const hasIndicatorValue =
+      indicator &&
+      (indicator.indicador != null || Boolean(textValue));
+    const value = options.valueFormatter
+      ? options.valueFormatter(rawValue, indicator)
+      : hasIndicatorValue
+        ? textValue || formatNumber(rawValue)
+        : "Dados faltantes";
+    const level = parseApiLevel(indicator?.nivel_maturidade);
+
+    return {
+      id: String(id),
+      title:
+        options.title ||
+        getIndicatorName(indicator, CHARACTERIZATION_TITLE_FALLBACKS[String(id)] || `Indicador ${id}`),
+      value,
+      level,
+      valueIsText: Boolean(textValue),
+      description: indicator?.indicador_descricao || null,
+      variableSources: getIndicatorSources(indicator),
+    };
+  };
+  const renderCharacterizationTitle = (item, className = "text-base leading-snug text-[#111827]") => {
+    const sources = getUniqueSources(item.variableSources);
+    const hasTooltipContent = Boolean(item.description) || sources.length > 0;
+
+    return (
+      <div className="flex min-w-0 items-start gap-2">
+        <p className={className} title={item.title}>
+          {item.title}
+        </p>
+
+        {hasTooltipContent && (
+          <span className="group relative mt-0.5 inline-flex shrink-0">
+            <button
+              type="button"
+              aria-label={`Informações sobre ${item.title || "indicador"}`}
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[#19c2df] transition-colors hover:bg-[#e9f8fc] hover:text-[#0da8c4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff] focus-visible:ring-offset-1"
+            >
+              <Info className="h-4 w-4" strokeWidth={2.3} />
+            </button>
+            <span className="pointer-events-none absolute left-0 top-full z-30 mt-2 w-80 rounded-md border border-[#d7e4f5] bg-white px-3 py-2 text-xs leading-relaxed text-[#425a78] opacity-0 shadow-[0_8px_24px_rgba(23,52,95,0.16)] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+              {item.description && <span className="block">{t(item.description)}</span>}
+              {sources.length > 0 && (
+                <span className={item.description ? "mt-2 block" : "block"}>
+                  <span className="font-semibold text-[#1f2d3d]">{t("Fonte:")}</span>{" "}
+                  {sources.join("; ")}
+                </span>
+              )}
+            </span>
+          </span>
+        )}
+      </div>
+    );
+  };
+  const renderCharacterizationCards = (cards, gridClass = "md:grid-cols-2 lg:grid-cols-4") => (
+    <div className={`grid grid-cols-1 gap-4 ${gridClass}`}>
+      {cards.map((card, index) => (
+        <article
+          key={card.id}
+          className="min-h-[148px] rounded-2xl border border-[#e3e9f2] bg-white p-5"
+        >
+          <div>
+            {renderCharacterizationTitle(
+              card,
+              "line-clamp-2 text-sm font-medium leading-snug text-[#1f2d3d]"
+            )}
+            <div className="mt-3 h-px w-full bg-[#e1e7ef]" />
+          </div>
+          <div className="mt-5 flex flex-wrap items-end gap-3">
+            <span
+              className={`block font-semibold ${
+                card.id === "4038"
+                  ? "w-full text-[20px] leading-none text-[#0f172a]"
+                  : card.valueIsText
+                    ? "text-base leading-relaxed text-[#53657d]"
+                  : `leading-none ${index === 0 ? "text-4xl" : "text-3xl"}`
+              }`}
+              style={
+                card.id === "4038"
+                  ? { whiteSpace: "nowrap" }
+                  : card.valueIsText
+                    ? undefined
+                    : { color: getMaturityLevelTextColor(card.level) }
+              }
+            >
+              {t(card.value)}
+            </span>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+  const renderCharacterizationTable = (items) => (
+    <div className="divide-y divide-[#edf1f5]">
+      {items.map((item) => (
+        item.valueIsText ? (
+          <div key={item.id} className="grid grid-cols-1 gap-3 px-6 py-4">
+            {renderCharacterizationTitle(item)}
+            <p className="max-w-full text-justify text-sm leading-relaxed text-[#53657d]">
+              {t(item.value || "N/D")}
+            </p>
+          </div>
+        ) : (
+          <div
+            key={item.id}
+            className="grid grid-cols-1 gap-3 px-6 py-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center lg:gap-5"
+          >
+            {renderCharacterizationTitle(item)}
+            <p className="text-left text-xl font-semibold leading-none text-[#0f172a] lg:text-right">
+              {t(item.value || "N/D")}
+            </p>
+          </div>
+        )
+      ))}
+    </div>
+  );
+  const sociodemographicCards = [
+    getCharacterizationCardById("3087", { title: "PIB per capita" }),
+    getCharacterizationCardById("4001"),
+    getCharacterizationCardById("4003", { title: "População total estimada" }),
+    getCharacterizationCardById("4038", {
+      title: "Rede de influência",
+      valueFormatter: (value) =>
+        INFLUENCE_NETWORK_LABELS[Math.round(value)] || "Desconhecido",
+    }),
+  ];
+  const territoryEnvironmentCards = [
+    getCharacterizationCardById("3058"),
+    getCharacterizationCardById("4062", {
+      valueFormatter: (value) => t(BIOME_LABELS[Math.round(value)] || "Desconhecido"),
+    }),
+    getCharacterizationCardById("4061"),
+    getCharacterizationCardById("4063"),
+    getCharacterizationCardById("4064"),
+  ];
+  const digitalTransformationCards = [
+    getCharacterizationCardById("3060"),
+    getCharacterizationCardById("3059"),
+    getCharacterizationCardById("4050"),
+    ...["4051", "4052", "4053", "4054", "4055", "4060", "4161"].map(
+      getCharacterizationCardById
+    ),
+  ];
+  const institutionalCards = [
+    getCharacterizationCardById("6020"),
+    getCharacterizationCardById("6057"),
+    ...["6002", "6011", "6017", "6019", "6058", "6059"].map(
+      getCharacterizationCardById
+    ),
+  ];
+  const displayCityName = toDisplayName(city.name);
+  const displayStateName = toDisplayName(city.stateName);
+  const dimensionsWithComputedLevels = (city.dimensions || []).map((dimension) => ({
+    ...dimension,
+    computedLevel: calculateDimensionLevelFromTopicLevels(dimension.code, indicatorsById),
+  }));
+  const mainDimensionsWithComputedLevels = dimensionsWithComputedLevels.filter((dimension) =>
+    MAIN_DIMENSION_CODES.includes(dimension.code)
+  );
+  const validMainDimensionLevels = mainDimensionsWithComputedLevels
+    .map((dimension) => dimension.computedLevel)
+    .filter((level) => Number.isFinite(level));
+  const currentDim = selectedDimension
+    ? dimensionsWithComputedLevels.find((dimension) => dimension.code === selectedDimension) || null
+    : null;
+  const currentDimLevel = Number.isFinite(currentDim?.computedLevel)
+    ? Math.min(7, Math.max(0, currentDim.computedLevel))
+    : null;
+  const hasCurrentDimLevel = Number.isFinite(currentDimLevel);
+  const currentDimLevelColor = hasCurrentDimLevel ? getLevelColor(currentDimLevel) : "#D8DDE3";
+  const avgLevel = validMainDimensionLevels.length
+    ? Math.round(
+        validMainDimensionLevels.reduce((sum, level) => sum + level, 0) /
+          validMainDimensionLevels.length
+      )
+    : null;
+  const hasAvgLevel = Number.isFinite(avgLevel);
+  const avgLevelColor = hasAvgLevel ? getLevelColor(avgLevel) : "#D8DDE3";
+  const dimensionScores = MAIN_DIMENSION_CODES.map((dimensionCode) =>
+    calculateDimensionScoreFromIndicators(
+      (indicatorsByDimension[dimensionCode] || []).map((item) =>
+        enrichIndicatorItem(item, indicatorsById[String(item.id)])
+      )
+    )
+  ).filter((score) => Number.isFinite(score));
+  const generalScore = dimensionScores.length
+    ? dimensionScores.reduce((sum, score) => sum + score, 0) / dimensionScores.length
+    : null;
+  const formattedGeneralScore = Number.isFinite(generalScore)
+    ? generalScore.toLocaleString("pt-BR", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })
+    : "N/D";
+  const hasUnansweredForm = hasUnansweredFormIndicators(indicatorsById);
+  const hasAnsweredForm = hasAnsweredFormIndicators(indicatorsById);
+
+  return (
+    <div>
+      <section className="city-search-hero-gradient pb-32 pt-16">
+        <div className="mx-auto max-w-[1300px] px-6">
+          <MunicipalityName
+            as="h1"
+            className="text-6xl font-extrabold text-white"
+          >
+            {displayCityName}
+          </MunicipalityName>
+
+          <div className="mt-4 flex items-center gap-4">
+            <span className="text-3xl text-white">{displayStateName}</span>
+            <div className="h-px flex-1 bg-white/50" />
+          </div>
+        </div>
+      </section>
+
+      <section className="-mt-20 pb-8">
+        <div className="mx-auto max-w-[1300px] px-6">
+          <div className="rounded-[28px] bg-white p-8 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+            {city.dimensions && city.dimensions.length > 0 && (
+              <div className="flex flex-col gap-6">
+                {/* Card geral e card da dimensão com transição suave */}
+                <div className="relative min-h-[142px]">
+                  <div
+                    className={`absolute inset-0 transition-all duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                      selectedDimension
+                        ? "pointer-events-none translate-y-[4px] opacity-0"
+                        : "translate-y-0 opacity-100"
+                    }`}
+                  >
+                    <div className="flex items-start gap-6 rounded-lg border border-[#e0e0e0] bg-white p-6">
+                      {/* Número grande em círculo */}
+                      <div className="relative h-[90px] w-[90px] flex-shrink-0">
+                        <svg
+                          viewBox="0 0 120 120"
+                          className="h-full w-full"
+                        >
+                          <circle
+                            cx="60"
+                            cy="60"
+                            r="55"
+                            fill="none"
+                            stroke="#D8DDE3"
+                            strokeWidth="8"
+                          />
+                          <circle
+                            cx="60"
+                            cy="60"
+                            r="55"
+                            fill="none"
+                            stroke={avgLevelColor}
+                            strokeWidth="8"
+                            strokeDasharray={`${((hasAvgLevel ? avgLevel : 0) / 7) * 2 * Math.PI * 55} ${2 * Math.PI * 55}`}
+                          />
+                        </svg>
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                          <span className="text-4xl font-bold text-[#1f2d3d]">
+                            {hasAvgLevel ? avgLevel : "N/D"}
+                          </span>
+                        </div>
+                      </div>
+
+                        {/* Informações do meio */}
+                        <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <MunicipalityName
+                            as="h3"
+                            className="text-2xl font-bold text-[#1f2d3d]"
+                          >
+                            {displayCityName} - {city.stateSigla}
+                          </MunicipalityName>
+                          {hasUnansweredForm && (
+                            <span className="inline-flex shrink-0 items-center rounded-full border border-[#efc7c3] bg-[#fff4f2] px-2.5 py-1 text-xs font-semibold leading-none text-[#b42318]">
+                              Formulário não respondido
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-[#4f5d73]">
+                          {displayStateName} · {t(`Região ${city.region}`)}
+                        </p>
+
+                        <MaturityTierBar level={hasAvgLevel ? avgLevel : null} />
+                      </div>
+
+                      {/* Dados à direita */}
+                      <div className="flex min-w-[124px] self-stretch items-center text-left">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#6b7c93]">
+                            Pontuação geral
+                          </p>
+                          <div
+                            aria-label={
+                              Number.isFinite(generalScore)
+                                ? `Pontuação geral ${formattedGeneralScore} de 100`
+                                : "Pontuação geral não disponível"
+                            }
+                            className="mt-1 inline-flex items-baseline whitespace-nowrap text-[#1f2d3d]"
+                          >
+                            <span aria-hidden="true" className="text-[27px] font-bold leading-none tracking-tight">
+                              {formattedGeneralScore}
+                            </span>
+                            {Number.isFinite(generalScore) && (
+                              <span aria-hidden="true" className="ml-1 text-xs font-semibold text-[#6b7c93]">
+                                /100
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`absolute inset-0 transition-all duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                      selectedDimension && currentDim
+                        ? "translate-y-0 opacity-100"
+                        : "pointer-events-none -translate-y-[4px] opacity-0"
+                    }`}
+                  >
+                    {currentDim && (
+                      <button
+                        onClick={() => setSelectedDimension(null)}
+                        className="flex w-full cursor-pointer items-start gap-6 rounded-lg border border-[#e0e0e0] bg-white p-6 text-left transition-all hover:border-[#29A9DF]"
+                      >
+                        {/* Círculo com nível */}
+                        <div className="relative h-[90px] w-[90px] flex-shrink-0">
+                          <svg
+                            viewBox="0 0 120 120"
+                            className="h-full w-full"
+                          >
+                            <circle
+                              cx="60"
+                              cy="60"
+                              r="55"
+                              fill="none"
+                              stroke="#D8DDE3"
+                              strokeWidth="8"
+                            />
+                            <circle
+                              cx="60"
+                              cy="60"
+                              r="55"
+                              fill="none"
+                              stroke={currentDimLevelColor}
+                              strokeWidth="8"
+                              strokeDasharray={`${((hasCurrentDimLevel ? currentDimLevel : 0) / 7) * 2 * Math.PI * 55} ${2 * Math.PI * 55}`}
+                            />
+                          </svg>
+                          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                            <span className="text-4xl font-bold text-[#1f2d3d]">
+                              {hasCurrentDimLevel ? currentDimLevel : "N/D"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Informações */}
+                        <div className="flex-1 text-left">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-2xl font-bold text-[#1f2d3d]">
+                              {currentDim.title}
+                            </h4>
+                            <MaturityTierBadge level={currentDimLevel} />
+                          </div>
+                          <p className="mt-1 text-sm text-[#4f5d73]">
+                            Nível de maturidade
+                          </p>
+
+                          <MaturityTierBar
+                            level={hasCurrentDimLevel ? currentDimLevel : null}
+                          />
+                        </div>
+
+                        {/* Coluna de métricas (igual ao card geral) */}
+                        <div className="hidden">
+                          <div>
+                            <div className="text-2xl font-bold text-[#1f2d3d]">
+                              {formattedGeneralScore}
+                            </div>
+                            <div className="text-xs text-[#4f5d73]">
+                              Pontuação geral (0–100)
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            )}
+          </div>
+
+          {!indicatorsLoading && (
+            <MunicipalAssistant
+              municipioCodIbge={city.codIbge}
+              cityName={displayCityName}
+              dimensionCode={selectedDimension}
+              dimensionTitle={currentDim?.title || null}
+              indicatorIds={selectedDimension ? DIMENSION_INDICATOR_REFS[selectedDimension] || [] : []}
+              language={language}
+              isAvailable={hasAnsweredForm}
+            />
+          )}
+
+          {selectedDimension && (
+            <div className="mt-8 rounded-[28px] bg-white p-8 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+              <IndicatorsTable
+                indicators={indicators}
+                pdfIndicators={pdfIndicators}
+                bestIndicators={dashboardHighlights.best}
+                worstIndicators={dashboardHighlights.worst}
+                stateSigla={city.stateSigla}
+                showPdfDownload={Boolean(selectedDimension)}
+                cityName={displayCityName}
+                dimensionTitle={currentDim?.title || ""}
+                dimensionScoreSummary={dimensionScoreSummary}
+                comparisonItems={dimensionComparisonsByKey[selectedDimension] || []}
+                comparisonLoading={Boolean(dimensionComparisonsLoadingByKey[selectedDimension])}
+                topicIndicatorWeights={DIMENSION_TOPIC_INDICATOR_WEIGHTS[selectedDimension] || {}}
+                dimensionScore={selectedDimensionScore}
+              />
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-[1300px] px-6 pb-12">
+        {!selectedDimension && (
+          <>
+            <div className="mb-3">
+              <div className="relative inline-grid max-w-full grid-cols-3 gap-1 rounded-xl border border-[#dce6f4] bg-[#f4f7fc] p-1">
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute bottom-1 top-1 z-0 w-[calc((100%-16px)/3)] rounded-lg border border-[#d6e2f3] bg-white shadow-[0_1px_3px_rgba(23,52,95,0.12)] transition-transform duration-300 ease-out ${
+                    detailsView === "indices"
+                      ? "translate-x-1"
+                      : detailsView === "caracterizacoes"
+                        ? "translate-x-[calc(100%+8px)]"
+                        : "translate-x-[calc(200%+12px)]"
+                  }`}
+                />
+                <button
+                  type="button"
+                  aria-pressed={detailsView === "indices"}
+                  onClick={() => setDetailsView("indices")}
+                  className={`relative z-10 rounded-lg px-4 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff] focus-visible:ring-offset-1 ${
+                    detailsView === "indices"
+                      ? "text-[#1f2d3d]"
+                      : "text-[#5a6f8f] hover:text-[#27466f]"
+                  }`}
+                >
+                  Dimensões
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={detailsView === "caracterizacoes"}
+                  onClick={() => setDetailsView("caracterizacoes")}
+                  className={`relative z-10 rounded-lg px-4 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff] focus-visible:ring-offset-1 ${
+                    detailsView === "caracterizacoes"
+                      ? "text-[#1f2d3d]"
+                      : "text-[#5a6f8f] hover:text-[#27466f]"
+                  }`}
+                >
+                  Caracterizações
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={detailsView === "visao-inteligente"}
+                  onClick={() => setDetailsView("visao-inteligente")}
+                  className={`relative z-10 rounded-lg px-4 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff] focus-visible:ring-offset-1 ${
+                    detailsView === "visao-inteligente"
+                      ? "text-[#1f2d3d]"
+                      : "text-[#5a6f8f] hover:text-[#27466f]"
+                  }`}
+                >
+                  Visão Inteligente
+                </button>
+              </div>
+            </div>
+
+            {detailsView !== "indices" && (
+              <div className="mb-3 border-b border-[#dce6f4] pb-1">
+                <div className="flex gap-1.5 overflow-x-auto">
+                  {activeSections.map((section) => (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() => setSelectedSection(section.id)}
+                      aria-pressed={selectedSection === section.id}
+                      className={`relative whitespace-nowrap px-3 py-2 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff] focus-visible:ring-offset-1 ${
+                        selectedSection === section.id
+                          ? "text-[#1f2d3d]"
+                          : "text-[#5a6f8f] hover:text-[#27466f]"
+                      }`}
+                    >
+                      {section.title.replace("Caracterização ", "")}
+                      <span
+                        className={`pointer-events-none absolute bottom-0 left-0 h-[2px] w-full bg-[#2d7fd3] transition-transform duration-300 ease-out ${
+                          selectedSection === section.id
+                            ? "scale-x-100"
+                            : "scale-x-0"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {detailsView === "indices" ? (
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1fr]">
+            <div className="flex h-[520px] min-w-0 min-h-0 flex-col gap-2 overflow-hidden pr-1">
+              {dimensionsWithComputedLevels.map((dim) => (
+              <button
+                key={dim.code}
+                onClick={() =>
+                  setSelectedDimension((prev) =>
+                    prev === dim.code ? null : dim.code
+                  )
+                }
+                className={`w-full min-h-0 flex-1 cursor-pointer rounded-lg border transition-all ${
+                  selectedDimension === dim.code
+                    ? "border-[#29A9DF] bg-[#f0f7ff] shadow-md"
+                    : "border-[#e0e0e0] bg-white hover:bg-[#f9f9f9]"
+                } p-4 text-left`}
+              >
+                <div className="flex h-full items-center gap-4">
+                  {/* Círculo com nível */}
+                  <div className="relative h-[62px] w-[62px] flex-shrink-0">
+                    <svg
+                      viewBox="0 0 120 120"
+                      className="h-full w-full"
+                    >
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="55"
+                        fill="none"
+                        stroke="#D8DDE3"
+                        strokeWidth="8"
+                      />
+                      <circle
+                        cx="60"
+                        cy="60"
+                              r="55"
+                              fill="none"
+                              stroke={
+                                Number.isFinite(dim.computedLevel)
+                                  ? getLevelColor(dim.computedLevel)
+                                  : "#D8DDE3"
+                              }
+                              strokeWidth="8"
+                              strokeDasharray={`${((Number.isFinite(dim.computedLevel) ? dim.computedLevel : 0) / 7) * 2 * Math.PI * 55} ${2 * Math.PI * 55}`}
+                            />
+                          </svg>
+                          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                            <span className="text-2xl font-bold leading-none text-[#1f2d3d]">
+                              {Number.isFinite(dim.computedLevel) ? dim.computedLevel : "N/D"}
+                            </span>
+                          </div>
+                  </div>
+
+                  {/* Informações */}
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h4 className="min-w-0 truncate text-xl font-bold leading-tight text-[#1f2d3d]">
+                        {dim.title}
+                      </h4>
+                      <MaturityTierBadge level={dim.computedLevel} />
+                    </div>
+                    <p className="text-sm leading-tight text-[#4f5d73]">
+                      Nível de maturidade
+                    </p>
+
+                    <MaturityTierBar
+                      compact
+                      level={dim.computedLevel}
+                      showLabels={false}
+                    />
+
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="min-w-0">
+            <div className="sticky top-4 h-[520px] overflow-hidden rounded-lg border border-border bg-muted">
+              {city.codIbge && city.stateSigla ? (
+                <MunicipalityMap
+                  cityCode={city.codIbge}
+                  stateSigla={city.stateSigla}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground">
+                  Mapa indisponível.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+            ) : (
+              <div>
+                <article
+                  key={activeCharacterization.id}
+                  className="overflow-hidden rounded-lg border border-[#dce6f4] bg-white"
+                >
+                  <header className="border-b border-[#e7edf7] px-6 py-4">
+                    <h3 className="text-2xl font-bold leading-tight text-[#1f2d3d] sm:text-xl">
+                      {activeCharacterization.title}
+                    </h3>
+                  </header>
+
+                  <div>
+                    {activeCharacterization.id === "sociodemografica" ? (
+                        <div className="px-6 py-5">
+                          {detailsView === "visao-inteligente" && (
+                            <section
+                              aria-label="Previsão de surto de arboviroses"
+                              className={`mb-6 overflow-hidden rounded-xl border-2 ${
+                                hasPredictedArbovirusOutbreak
+                                  ? "border-[#e85858] bg-[#fff5f5]"
+                                  : "border-[#42a675] bg-[#f1fbf6]"
+                              }`}
+                            >
+                              <div className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <p className={`text-sm font-bold uppercase tracking-[0.08em] ${
+                                    hasPredictedArbovirusOutbreak
+                                      ? "text-[#b42318]"
+                                      : "text-[#24734d]"
+                                  }`}>
+                                    Previsão do modelo
+                                  </p>
+                                  <h4 className="mt-2 text-2xl font-bold leading-tight text-[#17243a] sm:text-3xl">
+                                    {hasPredictedArbovirusOutbreak
+                                      ? arbovirusOutbreakStartMonth
+                                        ? `Início do surto previsto para ${arbovirusOutbreakStartMonth}`
+                                        : "Mês de início do surto ainda não informado"
+                                      : "Não há previsão de surto nos próximos 6 meses"}
+                                  </h4>
+                                  <p className="mt-2 text-sm text-[#51647f]">
+                                    É apenas uma previsão e não deve ser considerado como verdade absoluta!
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={revealArbovirusExplanation}
+                                  className={`shrink-0 rounded-lg border px-5 py-3 text-sm font-bold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+                                    hasPredictedArbovirusOutbreak
+                                      ? "border-[#e85858] bg-white text-[#b42318] hover:bg-[#fff0f0] focus-visible:ring-[#e85858]"
+                                      : "border-[#42a675] bg-white text-[#24734d] hover:bg-[#e8f8ef] focus-visible:ring-[#42a675]"
+                                  }`}
+                                >
+                                  Quer entender essa previsão?
+                                </button>
+                              </div>
+                            </section>
+                          )}
+                          {detailsView !== "visao-inteligente" && (
+                            <div className="mb-6">
+                              {renderCharacterizationCards(
+                                sociodemographicCards,
+                                "sm:grid-cols-2 xl:grid-cols-4"
+                              )}
+                            </div>
+                          )}
+                          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                            <div className="h-full rounded-lg border border-[#dce6f4] bg-white p-4">
+                              {detailsView === "visao-inteligente" ? (
+                                <>
+                                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                                    <div>
+                                      <h4 className="text-lg font-semibold text-[#1f2d3d]">
+                                        Série histórica de casos
+                                      </h4>
+                                      <p className="mt-1 text-sm text-[#5b7596]">
+                                        Casos registrados por mês no município
+                                      </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <label className="text-xs font-semibold text-[#425a78]">
+                                        Doença
+                                        <select
+                                          value={selectedArbovirusDisease}
+                                          onChange={(event) => setSelectedArbovirusDisease(event.target.value)}
+                                          className="mt-1 block min-w-[140px] rounded-md border border-[#cbd9eb] bg-white px-3 py-2 text-sm font-medium text-[#1f2d3d] outline-none focus:border-[#2d7fd3] focus:ring-2 focus:ring-[#d9eafe]"
+                                        >
+                                          {ARBOVIRUS_DISEASE_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                              {option.label}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                      <label className="text-xs font-semibold text-[#425a78]">
+                                        Ano
+                                        <select
+                                          value={selectedArbovirusYear}
+                                          onChange={(event) => setSelectedArbovirusYear(event.target.value)}
+                                          className="mt-1 block min-w-[100px] rounded-md border border-[#cbd9eb] bg-white px-3 py-2 text-sm font-medium text-[#1f2d3d] outline-none focus:border-[#2d7fd3] focus:ring-2 focus:ring-[#d9eafe]"
+                                        >
+                                          {Object.keys(ARBOVIRUS_CASES_BY_YEAR)
+                                            .sort((left, right) => Number(right) - Number(left))
+                                            .map((year) => (
+                                              <option key={year} value={year}>{year}</option>
+                                            ))}
+                                        </select>
+                                      </label>
+                                    </div>
+                                  </div>
+                                  <div className="-ml-3 h-[390px] w-[calc(100%+12px)]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                      <LineChart
+                                        data={arbovirusCasesSeries}
+                                        margin={{ top: 8, right: 28, left: 0, bottom: 4 }}
+                                      >
+                                        <XAxis
+                                          dataKey="month"
+                                          tick={{ fill: "#5b7596", fontSize: 12 }}
+                                          axisLine={{ stroke: "#d7e4f5" }}
+                                          tickLine={{ stroke: "#d7e4f5" }}
+                                        />
+                                        <YAxis
+                                          allowDecimals={false}
+                                          tick={{ fill: "#5b7596", fontSize: 12 }}
+                                          axisLine={{ stroke: "#d7e4f5" }}
+                                          tickLine={{ stroke: "#d7e4f5" }}
+                                        />
+                                        <Tooltip
+                                          formatter={(value) => [
+                                            Number(value).toLocaleString("pt-BR"),
+                                            `Casos de ${selectedArbovirusDiseaseLabel}`,
+                                          ]}
+                                          labelFormatter={(label) => `${label}/${selectedArbovirusYear}`}
+                                          contentStyle={{
+                                            borderRadius: 8,
+                                            border: "1px solid #d7e4f5",
+                                            boxShadow: "0 4px 14px rgba(25, 55, 95, 0.12)",
+                                          }}
+                                        />
+                                        <Line
+                                          type="monotone"
+                                          name={selectedArbovirusDiseaseLabel}
+                                          dataKey="casos"
+                                          stroke="#1f4e9b"
+                                          strokeWidth={3}
+                                          dot={{ r: 3, fill: "#1f4e9b" }}
+                                          activeDot={{ r: 5 }}
+                                        />
+                                      </LineChart>
+                                    </ResponsiveContainer>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                              <div className="mb-2">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-lg font-semibold text-[#1f2d3d]">
+                                    Evolução Histórica - Desigualdade de Renda
+                                  </h4>
+                                  <div className="group relative inline-flex">
+                                    <button
+                                      type="button"
+                                      aria-label="O que é o Índice de GINI"
+                                      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#19c2df] transition-colors hover:bg-[#e9f8fc] hover:text-[#0da8c4]"
+                                    >
+                                      <Info className="h-4 w-4" strokeWidth={2.2} />
+                                    </button>
+                                    <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-72 -translate-x-1/2 rounded-md border border-[#d7e4f5] bg-white px-3 py-2 text-xs leading-relaxed text-[#425a78] opacity-0 shadow-[0_6px_20px_rgba(23,52,95,0.14)] transition-opacity group-hover:opacity-100">
+                                      O Índice de GINI mede a desigualdade de renda: quanto mais próximo de 0, mais igualitária é a distribuição; quanto mais próximo de 1, maior é a desigualdade.
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="mt-1 h-[10px]" aria-hidden="true" />
+                              </div>
+                              {giniLoading ? (
+                                <div className="flex h-[280px] items-center justify-center text-sm text-[#5b7596]">
+                                  Carregando série do GINI...
+                                </div>
+                              ) : giniSeries.length === 0 ? (
+                                <div className="flex h-[280px] items-center justify-center text-sm text-[#5b7596]">
+                                  Sem dados históricos de GINI para o município.
+                                </div>
+                              ) : (
+                                <div className="-ml-3 h-[280px] w-[calc(100%+12px)]">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart
+                                      data={giniSeries}
+                                      margin={{ top: 8, right: 28, left: 0, bottom: 4 }}
+                                    >
+                                      <XAxis
+                                        dataKey="ano"
+                                        tick={{ fill: "#5b7596", fontSize: 12 }}
+                                        axisLine={{ stroke: "#d7e4f5" }}
+                                        tickLine={{ stroke: "#d7e4f5" }}
+                                        interval={0}
+                                        tickFormatter={(value, index) =>
+                                          giniSeries[index]?.estimado ? "" : value
+                                        }
+                                      />
+                                      <YAxis
+                                        domain={giniDomain}
+                                        tick={{ fill: "#5b7596", fontSize: 12 }}
+                                        axisLine={{ stroke: "#d7e4f5" }}
+                                        tickLine={{ stroke: "#d7e4f5" }}
+                                        tickFormatter={(value) =>
+                                          Number(value).toLocaleString("pt-BR", {
+                                            minimumFractionDigits: 1,
+                                            maximumFractionDigits: 2,
+                                          })
+                                        }
+                                      />
+                                      <Tooltip
+                                        formatter={(value, name) => [
+                                          Number(value).toLocaleString("pt-BR", {
+                                            minimumFractionDigits: 3,
+                                            maximumFractionDigits: 3,
+                                          }),
+                                          name,
+                                        ]}
+                                        labelFormatter={(label) => `Ano ${label}`}
+                                        contentStyle={{
+                                          borderRadius: 8,
+                                          border: "1px solid #d7e4f5",
+                                          boxShadow: "0 4px 14px rgba(25, 55, 95, 0.12)",
+                                        }}
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        name="Média regional"
+                                        dataKey="mediaRegional"
+                                        stroke="#7db5e8"
+                                        strokeWidth={2}
+                                        strokeOpacity={0.55}
+                                        dot={false}
+                                        activeDot={false}
+                                        connectNulls
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        name="Média nacional"
+                                        dataKey="mediaNacional"
+                                        stroke="#9ca3af"
+                                        strokeWidth={2}
+                                        strokeOpacity={0.5}
+                                        dot={false}
+                                        activeDot={false}
+                                        connectNulls
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        name={displayCityName}
+                                        dataKey="valor"
+                                        stroke="#1f4e9b"
+                                        strokeWidth={3}
+                                        dot={false}
+                                        activeDot={false}
+                                      />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              )}
+                                </>
+                              )}
+                            </div>
+
+                            <div className="h-full rounded-lg border border-[#dce6f4] bg-white p-4">
+                              {detailsView === "visao-inteligente" ? (
+                                <>
+                                  <div className="mb-4">
+                                    <h4 className="text-lg font-semibold text-[#1f2d3d]">
+                                      Comparação com municípios próximos
+                                    </h4>
+                                    <p className="mt-1 text-sm text-[#5b7596]">
+                                      Desempenho de {displayCityName} em relação à mediana dos vizinhos
+                                    </p>
+                                  </div>
+                                  <div className="border-y border-[#e7edf7] py-2">
+                                    <div className="grid grid-cols-1 gap-3 text-xs font-bold sm:grid-cols-[minmax(220px,1fr)_minmax(250px,1.25fr)] sm:items-center">
+                                      <label>
+                                        <span className="sr-only">Tópico da comparação</span>
+                                        <select
+                                          value={selectedComparisonTopic}
+                                          onChange={(event) => setSelectedComparisonTopic(event.target.value)}
+                                          className="w-full max-w-[230px] rounded-md border border-[#cbd9eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2d3d] outline-none focus:border-[#2d7fd3] focus:ring-2 focus:ring-[#d9eafe]"
+                                        >
+                                          <option value="saude-vigilancia">Saúde e vigilância</option>
+                                          <option value="contexto">Contexto</option>
+                                          <option value="saneamento">Saneamento</option>
+                                        </select>
+                                      </label>
+                                      <div className="flex justify-between">
+                                        <span className="text-[#dc3f3f]">← pior</span>
+                                        <span className="text-[#425a78]">mediana</span>
+                                        <span className="text-[#2475cf]">melhor →</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    {nearbyMunicipalityComparisons.map((item) => {
+                                      const isBetter = item.higherIsBetter
+                                        ? item.value >= item.median
+                                        : item.value <= item.median;
+                                      const position = item.higherIsBetter
+                                        ? item.percentile
+                                        : 100 - item.percentile;
+
+                                      return (
+                                        <div
+                                          key={item.label}
+                                          className="grid grid-cols-1 gap-3 border-b border-[#e7edf7] py-4 last:border-b-0 sm:grid-cols-[minmax(220px,1fr)_minmax(250px,1.25fr)] sm:items-center"
+                                        >
+                                          <div>
+                                            <p className="text-sm font-bold text-[#17243a]">{item.label}</p>
+                                            <p className="mt-1 text-xs leading-relaxed text-[#425a78]">
+                                              {displayCityName}: {item.value.toLocaleString("pt-BR")} {item.unit}
+                                              {" · "}mediana dos vizinhos: {item.median.toLocaleString("pt-BR")} {item.unit}
+                                            </p>
+                                          </div>
+                                          <div>
+                                            <div className="relative h-5" role="img" aria-label={`${item.label}: percentil ${item.percentile}`}>
+                                              <div className="absolute left-0 right-0 top-2 h-1.5 rounded-full bg-[#dfe6ef]" />
+                                              <div className="absolute left-1/2 top-0 h-5 w-0.5 -translate-x-1/2 bg-[#8da0b8]" />
+                                              <div
+                                                className={`absolute top-0.5 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_#b8c7d9] ${
+                                                  isBetter ? "bg-[#2d7fd3]" : "bg-[#e34d4d]"
+                                                }`}
+                                                style={{ left: `${Math.max(3, Math.min(97, position))}%` }}
+                                              />
+                                            </div>
+                                            <p className={`mt-1 text-xs font-bold ${isBetter ? "text-[#245f9e]" : "text-[#b42318]"}`}>
+                                              {isBetter ? "melhor" : "pior"} que {item.percentile}% dos municípios próximos
+                                            </p>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                              <div className="mb-2">
+                                <h4 className="text-lg font-semibold text-[#1f2d3d]">
+                                  Evolução Histórica do PIB por Setor
+                                </h4>
+                                <div className="mt-1 h-[10px]" aria-hidden="true" />
+                              </div>
+                              {pibLoading ? (
+                                <div className="flex h-[280px] items-center justify-center text-sm text-[#5b7596]">
+                                  Carregando séries do PIB...
+                                </div>
+                              ) : pibSeries.length === 0 ? (
+                                <div className="flex h-[280px] items-center justify-center text-sm text-[#5b7596]">
+                                  Sem dados históricos de PIB para o município.
+                                </div>
+                              ) : (
+                                <div className="-ml-3 h-[280px] w-[calc(100%+12px)]">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart
+                                      data={pibSeries}
+                                      margin={{ top: 8, right: 0, left: 0, bottom: 4 }}
+                                    >
+                                      <XAxis
+                                        dataKey="ano"
+                                        tick={{ fill: "#5b7596", fontSize: 12 }}
+                                        axisLine={{ stroke: "#d7e4f5" }}
+                                        tickLine={{ stroke: "#d7e4f5" }}
+                                      />
+                                      <YAxis
+                                        tick={{ fill: "#5b7596", fontSize: 12 }}
+                                        axisLine={{ stroke: "#d7e4f5" }}
+                                        tickLine={{ stroke: "#d7e4f5" }}
+                                        tickFormatter={(value) =>
+                                          Number(value).toLocaleString("pt-BR", {
+                                            notation: "compact",
+                                            maximumFractionDigits: 1,
+                                          })
+                                        }
+                                      />
+                                      <Tooltip
+                                        formatter={(value) =>
+                                          Number(value).toLocaleString("pt-BR", {
+                                            maximumFractionDigits: 2,
+                                          })
+                                        }
+                                        labelFormatter={(label) => `Ano ${label}`}
+                                        contentStyle={{
+                                          borderRadius: 8,
+                                          border: "1px solid #d7e4f5",
+                                          boxShadow: "0 4px 14px rgba(25, 55, 95, 0.12)",
+                                        }}
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        dataKey={selectedPibRegionalKey}
+                                        name="Média regional"
+                                        stroke="#86c6b0"
+                                        strokeWidth={2}
+                                        strokeOpacity={0.5}
+                                        dot={false}
+                                        activeDot={false}
+                                        connectNulls
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        dataKey={selectedPibNacionalKey}
+                                        name="Média nacional"
+                                        stroke="#9ca3af"
+                                        strokeWidth={2}
+                                        strokeOpacity={0.45}
+                                        dot={false}
+                                        activeDot={false}
+                                        connectNulls
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        dataKey={selectedPibShareOption.key}
+                                        name={displayCityName}
+                                        stroke={selectedPibShareOption.color}
+                                        strokeWidth={3}
+                                        dot={false}
+                                        activeDot={false}
+                                      />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              )}
+                              <div className="mt-4 flex flex-wrap items-center gap-2">
+                                {PIB_SHARE_OPTIONS.map((option) => {
+                                  const isSelected = selectedPibShareKey === option.key;
+
+                                  return (
+                                    <button
+                                      key={option.key}
+                                      type="button"
+                                      onClick={() => setSelectedPibShareKey(option.key)}
+                                      aria-pressed={isSelected}
+                                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                                        isSelected
+                                          ? "border-transparent text-white"
+                                          : "border-[#d7e4f5] bg-white text-[#5b7596] hover:border-[#b9cce6] hover:text-[#1f2d3d]"
+                                      }`}
+                                      style={isSelected ? { backgroundColor: option.color } : undefined}
+                                    >
+                                      {option.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {detailsView === "visao-inteligente" && (
+                            <section
+                              aria-labelledby="arbovirus-recommendations-title"
+                              className="mt-6 overflow-hidden rounded-lg border border-[#dce6f4] bg-white"
+                            >
+                              <div className="border-b border-[#e7edf7] px-5 py-4">
+                                <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#2d7fd3]">
+                                  O que o município pode fazer agora
+                                </p>
+                                <h4
+                                  id="arbovirus-recommendations-title"
+                                  className="mt-1 text-xl font-bold text-[#17243a]"
+                                >
+                                  {hasPredictedArbovirusOutbreak
+                                    ? "Diretrizes para prevenção e controle"
+                                    : "Projetos de Lei aplicáveis"}
+                                </h4>
+                              </div>
+
+                              {hasPredictedArbovirusOutbreak ? (
+                                <div className="px-5 py-5">
+                                  <p className="text-sm leading-6 text-[#51647f]">
+                                    Diante da previsão de surto, consulte as orientações nacionais para
+                                    vigilância entomológica, prevenção e controle vetorial das arboviroses urbanas.
+                                  </p>
+                                  <a
+                                    href="https://www.cosemssp.org.br/wp-content/uploads/2025/05/diretrizes-nacionais-para-prevencao-e-controle-das-arboviroses-urbanas-vigilancia-entomologica-e-controle-vetorial.pdf"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-4 inline-flex rounded-lg bg-[#b42318] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#8f1c13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e85858] focus-visible:ring-offset-2"
+                                  >
+                                    Abrir diretrizes do Ministério da Saúde
+                                  </a>
+                                </div>
+                              ) : (
+                                <div className="divide-y divide-[#e7edf7]">
+                                  {sonarProjectsLoading && (
+                                    <p className="px-5 py-6 text-sm text-[#5b7596]" role="status">
+                                      Consultando projetos no Sonar Municipal…
+                                    </p>
+                                  )}
+                                  {!sonarProjectsLoading && sonarProjectsError && (
+                                    <p className="px-5 py-6 text-sm text-[#b42318]" role="alert">
+                                      {sonarProjectsError}
+                                    </p>
+                                  )}
+                                  {!sonarProjectsLoading && !sonarProjectsError && sonarProjects.length === 0 && (
+                                    <p className="px-5 py-6 text-sm text-[#5b7596]">
+                                      Nenhum projeto aplicável foi encontrado pelo Sonar Municipal.
+                                    </p>
+                                  )}
+                                  {!sonarProjectsLoading && sonarProjects.map((project, index) => (
+                                    <article key={project.id ?? `${project.acao}-${index}`} className="px-5 py-4">
+                                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="min-w-0">
+                                          <h5 className="font-bold leading-6 text-[#17243a]">
+                                            {project.acao || project.ementa}
+                                          </h5>
+                                          {project.acao && project.ementa && (
+                                            <p className="mt-1 text-sm leading-6 text-[#51647f]">{project.ementa}</p>
+                                          )}
+                                          <p className="mt-2 text-xs font-semibold text-[#5b7596]">
+                                            {[project.tipo, project.municipio, project.uf]
+                                              .filter(Boolean)
+                                              .join(" · ")}
+                                          </p>
+                                        </div>
+                                        {project.link && (
+                                          <a
+                                            href={project.link}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="shrink-0 text-sm font-bold text-[#2475cf] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff]"
+                                          >
+                                            Ver projeto
+                                          </a>
+                                        )}
+                                      </div>
+                                    </article>
+                                  ))}
+                                </div>
+                              )}
+
+                              {!hasPredictedArbovirusOutbreak && (
+                                <div className="border-t border-[#e7edf7] bg-[#f8faff] px-5 py-3 text-xs text-[#5b7596]">
+                                  Sugestões obtidas por busca semântica no Sonar Municipal; avalie a adequação
+                                  jurídica e o contexto local antes da adoção.
+                                </div>
+                              )}
+                            </section>
+                          )}
+                          {detailsView === "visao-inteligente" && showArbovirusExplanation && (
+                            <section
+                              ref={arbovirusExplanationRef}
+                              aria-labelledby="arbovirus-shap-title"
+                              className="mt-6 scroll-mt-6 overflow-hidden rounded-lg border border-[#dce6f4] bg-white"
+                            >
+                              <div className="border-b border-[#e7edf7] px-5 py-4">
+                                <h4 id="arbovirus-shap-title" className="text-xl font-bold text-[#17243a]">
+                                  O que influenciou esta previsão?
+                                </h4>
+                                <p className="mt-1 text-sm text-[#5b7596]">
+                                  Valores SHAP mostram quanto cada fator puxou o risco de surto para baixo ou para cima.
+                                </p>
+                              </div>
+                              <div className="px-5">
+                                <div className="grid grid-cols-1 border-b border-[#e7edf7] py-3 text-xs font-bold sm:grid-cols-[minmax(280px,1.1fr)_minmax(360px,1fr)]">
+                                  <span />
+                                  <div className="flex justify-between">
+                                    <span className="text-[#2475cf]">← puxa o risco para baixo</span>
+                                    <span className="text-[#dc3f3f]">empurra para cima →</span>
+                                  </div>
+                                </div>
+                                {ARBOVIRUS_SHAP_FACTORS.map((factor) => {
+                                  const width = Math.min(47, (Math.abs(factor.impact) / 0.06) * 47);
+                                  const isPositive = factor.impact > 0;
+
+                                  return (
+                                    <div
+                                      key={factor.label}
+                                      className="grid grid-cols-1 gap-3 border-b border-[#e7edf7] py-4 last:border-b-0 sm:grid-cols-[minmax(280px,1.1fr)_minmax(360px,1fr)] sm:items-center"
+                                    >
+                                      <div>
+                                        <p className="text-sm font-bold text-[#17243a]">{factor.label}</p>
+                                        <p className="mt-1 text-xs text-[#425a78]">valor: {factor.valueLabel}</p>
+                                      </div>
+                                      <div className="relative h-7">
+                                        <div className="absolute bottom-0 left-1/2 top-0 w-px bg-[#b8c7d9]" />
+                                        <div
+                                          className={`absolute top-1 h-5 rounded ${isPositive ? "bg-[#e84c4c]" : "bg-[#327dd4]"}`}
+                                          style={isPositive
+                                            ? { left: "50%", width: `${width}%` }
+                                            : { left: `${50 - width}%`, width: `${width}%` }}
+                                        />
+                                        <span
+                                          className={`absolute top-1 text-xs font-bold leading-5 text-[#17243a] ${isPositive ? "ml-2" : "-translate-x-full pr-2"}`}
+                                          style={{ left: isPositive ? `${50 + width}%` : `${50 - width}%` }}
+                                        >
+                                          {factor.impact > 0 ? "+" : ""}{factor.impact.toLocaleString("pt-BR", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2,
+                                          })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </section>
+                          )}
+                        </div>
+                    ) : activeCharacterization.id === "territorio-ambiente" ? (
+                      renderCharacterizationTable(territoryEnvironmentCards)
+                    ) : activeCharacterization.id === "transformacao-digital" ? (
+                      renderCharacterizationTable(digitalTransformationCards)
+                    ) : activeCharacterization.id === "institucional" ? (
+                      renderCharacterizationTable(institutionalCards)
+                    ) : (
+                      activeCharacterization.rows.map((row) => (
+                          <div
+                            key={row.indicator}
+                            className="grid grid-cols-[1fr_140px_120px] items-center gap-x-4 border-b border-[#eef3fa] px-6 py-4 last:border-b-0"
+                          >
+                            <span className="text-sm font-semibold text-[#1f2d3d]">
+                              {row.indicator}
+                            </span>
+                            <span className="text-right text-sm text-[#1f2d3d]">
+                              {row.value}
+                            </span>
+                            <span className="text-right text-sm text-[#5b7596]">
+                              {row.unit}
+                            </span>
+                          </div>
+                      ))
+                    )}
+                  </div>
+                </article>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default CitySearchDetails;
