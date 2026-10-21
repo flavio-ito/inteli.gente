@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import {
   Line,
   LineChart,
@@ -15,6 +15,22 @@ import IndicatorsTable from "@/components/city/IndicatorsTable";
 import MunicipalityMap from "@/components/city/MunicipalityMap";
 import MunicipalAssistant from "@/components/city/MunicipalAssistant";
 import { useI18n } from "@/lib/i18n";
+import {
+  ARBOVIRUS_DISEASES,
+  DISEASES_WITH_FORECAST,
+  RISK_LEVELS,
+  confidenceMessage,
+  describeMonthRange,
+  diseaseLabel,
+  forecastHeadline,
+  formatComparisonValue,
+  formatFactorValue,
+  formatMonthYear,
+  referenceMessage,
+  seriesForYear,
+  seriesYears,
+  unavailableForecastMessage,
+} from "@/lib/arboviroses";
 
 const toDisplayName = (name) =>
   (name || "")
@@ -47,30 +63,36 @@ const parseNullableNumber = (value) => {
   return Number.isFinite(parsedValue) ? parsedValue : null;
 };
 
-const isPredictedArbovirusOutbreak = (value) =>
-  value === true ||
-  value === 1 ||
-  ["true", "sim", "1", "surto"].includes(
-    String(value ?? "").trim().toLocaleLowerCase("pt-BR")
-  );
-
-const getArbovirusOutbreakPrediction = (cityData) =>
-  cityData?.previsao_surto_arboviroses ?? cityData?.arboviroses_surto_6_meses ?? false;
-
-const getArbovirusOutbreakStartMonth = (cityData) => {
-  return (
-    cityData?.previsao_mes_inicio_surto_arboviroses ??
-    cityData?.arboviroses_mes_inicio_surto ??
-    null
-  );
-};
-
 const formatSonarProfileValue = ({ unidade, valor }) =>
   unidade === "habitantes"
     ? `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} hab.`
     : `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
-const EMPTY_SONAR_RECOMMENDATIONS = { perfil: [], temas: [] };
+const EMPTY_SONAR_RECOMMENDATIONS = { fonte_temas: "perfil", previsao: null, perfil: [], temas: [] };
+
+const COMPARISON_TOPICS = [
+  { value: "saude", label: "Saúde e vigilância" },
+  { value: "saneamento", label: "Saneamento" },
+  { value: "contexto", label: "Contexto" },
+];
+
+const BANNER_TONES = {
+  alert: {
+    box: "border-[#e85858] bg-[#fff5f5]",
+    eyebrow: "text-[#b42318]",
+    button: "border-[#e85858] text-[#b42318] hover:bg-[#fff0f0] focus-visible:ring-[#e85858]",
+  },
+  calm: {
+    box: "border-[#42a675] bg-[#f1fbf6]",
+    eyebrow: "text-[#24734d]",
+    button: "border-[#42a675] text-[#24734d] hover:bg-[#e8f8ef] focus-visible:ring-[#42a675]",
+  },
+  neutral: {
+    box: "border-[#cbd9eb] bg-[#f6f9fd]",
+    eyebrow: "text-[#425a78]",
+    button: "border-[#cbd9eb] text-[#2b4a6f] hover:bg-[#eef4fc] focus-visible:ring-[#7fb6ff]",
+  },
+};
 
 const formatMobileBroadbandCoverage = (value) => {
   const parsedValue = Number(value);
@@ -487,45 +509,6 @@ const PIB_SHARE_OPTIONS = [
   { key: "pibSr", label: "Serviços", color: "#D6336C" },
 ];
 
-const ARBOVIRUS_DISEASE_OPTIONS = [
-  { value: "dengue", label: "Dengue" },
-  { value: "chikungunya", label: "Chikungunya" },
-  { value: "zika", label: "Zika" },
-];
-
-const ARBOVIRUS_CASES_BY_YEAR = {
-  2023: {
-    dengue: [18, 24, 39, 58, 77, 66, 49, 35, 28, 22, 19, 16],
-    chikungunya: [4, 6, 9, 14, 20, 17, 13, 10, 8, 6, 5, 4],
-    zika: [1, 2, 3, 5, 7, 6, 4, 3, 2, 2, 1, 1],
-  },
-  2024: {
-    dengue: [27, 35, 54, 83, 112, 96, 71, 52, 40, 31, 25, 21],
-    chikungunya: [6, 8, 13, 19, 27, 23, 18, 14, 11, 9, 7, 6],
-    zika: [2, 3, 5, 7, 10, 8, 6, 5, 4, 3, 2, 2],
-  },
-  2025: {
-    dengue: [34, 48, 73, 121, 154, 139, 105, 78, 59, 45, 37, 29],
-    chikungunya: [8, 12, 18, 29, 38, 34, 26, 20, 16, 12, 10, 8],
-    zika: [3, 4, 7, 11, 15, 13, 10, 8, 6, 5, 4, 3],
-  },
-};
-
-const MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-
-const ARBOVIRUS_SHAP_FACTORS = [
-  { label: "Posição no calendário (cosseno do mês)", valueLabel: "-1", impact: -0.06 },
-  { label: "Temperatura média", valueLabel: "19,05 °C", impact: -0.05 },
-  { label: "Posição no calendário (seno do mês)", valueLabel: "0", impact: -0.04 },
-  { label: "Casos de dengue há 12 meses", valueLabel: "26 casos", impact: -0.03 },
-  { label: "Umidade relativa do ar há 2 meses", valueLabel: "59,74%", impact: 0.02 },
-  { label: "Umidade relativa do ar", valueLabel: "76,4%", impact: -0.02 },
-  { label: "Cobertura calculada da atenção primária", valueLabel: "100%", impact: 0.02 },
-  { label: "Chuva acumulada nos 3 meses anteriores", valueLabel: "2,83 mm", impact: -0.01 },
-  { label: "Casos de dengue há 6 meses", valueLabel: "0 casos", impact: -0.01 },
-  { label: "Incidência de dengue por 100 mil habitantes", valueLabel: "8,87", impact: -0.01 },
-];
-
 const BIOME_LABELS = {
   0: "Desconhecido",
   1: "Amazônia",
@@ -802,9 +785,13 @@ const CitySearchDetails = () => {
   const [pibLoading, setPibLoading] = useState(false);
   const [selectedPibShareKey, setSelectedPibShareKey] = useState("pibAg");
   const [selectedArbovirusDisease, setSelectedArbovirusDisease] = useState("dengue");
-  const [selectedArbovirusYear, setSelectedArbovirusYear] = useState("2025");
-  const [selectedComparisonTopic, setSelectedComparisonTopic] = useState("saude-vigilancia");
+  const [selectedArbovirusYear, setSelectedArbovirusYear] = useState(null);
+  const [selectedArbovirusHorizon, setSelectedArbovirusHorizon] = useState(null);
+  const [selectedComparisonTopic, setSelectedComparisonTopic] = useState("saude");
   const [showArbovirusExplanation, setShowArbovirusExplanation] = useState(false);
+  const [arbovirusPanel, setArbovirusPanel] = useState(null);
+  const [arbovirusPanelLoading, setArbovirusPanelLoading] = useState(false);
+  const [arbovirusPanelError, setArbovirusPanelError] = useState("");
   const [sonarRecommendations, setSonarRecommendations] = useState(EMPTY_SONAR_RECOMMENDATIONS);
   const [sonarProjectsLoading, setSonarProjectsLoading] = useState(false);
   const [sonarProjectsError, setSonarProjectsError] = useState("");
@@ -903,20 +890,56 @@ const CitySearchDetails = () => {
 
   useEffect(() => {
     const municipioCodIbge = cityData?.municipio_cod_ibge;
-    const prediction = getArbovirusOutbreakPrediction(cityData);
+
+    setArbovirusPanel(null);
+    setArbovirusPanelError("");
+    setSelectedArbovirusHorizon(null);
+
+    if (!municipioCodIbge) {
+      setArbovirusPanelLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    setArbovirusPanelLoading(true);
+
+    fetch(`/api/municipios/${municipioCodIbge}/arboviroses`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("Não foi possível carregar os dados de arboviroses.");
+        return response.json();
+      })
+      .then((data) => setArbovirusPanel(data))
+      .catch((requestError) => {
+        if (requestError.name !== "AbortError") {
+          console.error("Erro ao carregar os dados de arboviroses:", requestError);
+          setArbovirusPanelError("Não foi possível carregar os dados de arboviroses neste momento.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setArbovirusPanelLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [cityData?.municipio_cod_ibge]);
+
+  // Os temas de projetos de lei seguem a doença escolhida: com previsão, saem dos
+  // grupos de fatores que mais aumentaram o risco; sem ela, do perfil do município.
+  useEffect(() => {
+    const municipioCodIbge = cityData?.municipio_cod_ibge;
 
     setSonarRecommendations(EMPTY_SONAR_RECOMMENDATIONS);
     setSonarProjectsError("");
 
-    if (!municipioCodIbge || isPredictedArbovirusOutbreak(prediction)) {
+    if (!municipioCodIbge) {
       setSonarProjectsLoading(false);
-      return;
+      return undefined;
     }
 
     const controller = new AbortController();
     setSonarProjectsLoading(true);
 
-    fetch(`/api/sonar-municipal/${municipioCodIbge}/projetos-arboviroses`, {
+    const query = new URLSearchParams({ doenca: selectedArbovirusDisease });
+    fetch(`/api/sonar-municipal/${municipioCodIbge}/projetos-arboviroses?${query}`, {
       signal: controller.signal,
     })
       .then((response) => {
@@ -925,6 +948,8 @@ const CitySearchDetails = () => {
       })
       .then((data) =>
         setSonarRecommendations({
+          fonte_temas: data?.fonte_temas === "previsao" ? "previsao" : "perfil",
+          previsao: data?.previsao || null,
           perfil: Array.isArray(data?.perfil) ? data.perfil : [],
           temas: Array.isArray(data?.temas) ? data.temas : [],
         })
@@ -940,12 +965,7 @@ const CitySearchDetails = () => {
       });
 
     return () => controller.abort();
-  }, [
-    cityData?.municipio_cod_ibge,
-    cityData?.code,
-    cityData?.previsao_surto_arboviroses,
-    cityData?.arboviroses_surto_6_meses,
-  ]);
+  }, [cityData?.municipio_cod_ibge, selectedArbovirusDisease]);
 
   useEffect(() => {
     const municipioCodIbge = cityData?.municipio_cod_ibge;
@@ -1365,43 +1385,70 @@ const CitySearchDetails = () => {
     codIbge: cityData.municipio_cod_ibge || null,
     region: cityData.municipio_regiao || "",
   };
-  const arbovirusOutbreakPrediction = getArbovirusOutbreakPrediction(cityData);
-  const hasPredictedArbovirusOutbreak =
-    isPredictedArbovirusOutbreak(arbovirusOutbreakPrediction);
-  const arbovirusOutbreakStartMonth = getArbovirusOutbreakStartMonth(cityData);
-  const arbovirusCasesSeries = MONTH_LABELS.map((month, index) => ({
-    month,
-    casos:
-      ARBOVIRUS_CASES_BY_YEAR[selectedArbovirusYear]?.[selectedArbovirusDisease]?.[index] ?? 0,
-  }));
-  const selectedArbovirusDiseaseLabel =
-    ARBOVIRUS_DISEASE_OPTIONS.find(({ value }) => value === selectedArbovirusDisease)?.label ||
-    "Doença";
-  const arbovirusTotalCases = arbovirusCasesSeries.reduce((sum, item) => sum + item.casos, 0);
-  const arbovirusPeakCases = Math.max(...arbovirusCasesSeries.map((item) => item.casos));
-  const nearbyMunicipalityComparisonsByTopic = {
-    "saude-vigilancia": [
-      { label: `Casos de ${selectedArbovirusDiseaseLabel} no ano`, value: arbovirusTotalCases, median: Math.round(arbovirusTotalCases * 0.76), unit: "casos", percentile: 78, higherIsBetter: false },
-      { label: "Pico mensal de casos", value: arbovirusPeakCases, median: Math.round(arbovirusPeakCases * 0.82), unit: "casos", percentile: 71, higherIsBetter: false },
-      { label: "Cobertura de atenção primária", value: 92.4, median: 86.1, unit: "%", percentile: 68, higherIsBetter: true },
-      { label: "Cobertura vacinal contra febre amarela", value: 84.7, median: 81.3, unit: "%", percentile: 61, higherIsBetter: true },
-    ],
-    contexto: [
-      { label: "Densidade populacional", value: 264.3, median: 187.8, unit: "hab./km²", percentile: 73, higherIsBetter: false },
-      { label: "População em área urbana", value: 96.2, median: 91.4, unit: "%", percentile: 66, higherIsBetter: true },
-      { label: "Renda domiciliar per capita", value: 1842, median: 1560, unit: "R$", percentile: 72, higherIsBetter: true },
-      { label: "Índice de vulnerabilidade social", value: 0.22, median: 0.29, unit: "", percentile: 69, higherIsBetter: false },
-    ],
-    saneamento: [
-      { label: "População com abastecimento de água", value: 98.1, median: 94.5, unit: "%", percentile: 86, higherIsBetter: true },
-      { label: "População com coleta de esgoto", value: 96.7, median: 91.2, unit: "%", percentile: 89, higherIsBetter: true },
-      { label: "Esgoto coletado e tratado", value: 88.4, median: 81.7, unit: "%", percentile: 76, higherIsBetter: true },
-      { label: "Cobertura da coleta de resíduos", value: 99.2, median: 96.8, unit: "%", percentile: 82, higherIsBetter: true },
-    ],
-  };
-  const nearbyMunicipalityComparisons =
-    nearbyMunicipalityComparisonsByTopic[selectedComparisonTopic] ||
-    nearbyMunicipalityComparisonsByTopic["saude-vigilancia"];
+  const selectedArbovirusDiseaseLabel = diseaseLabel(selectedArbovirusDisease);
+  const selectedArbovirusForecast = arbovirusPanel?.previsao?.disponivel
+    ? arbovirusPanel.previsao.doencas?.[selectedArbovirusDisease] || null
+    : null;
+  let arbovirusHeadline;
+  if (arbovirusPanelLoading) {
+    arbovirusHeadline = { tone: "neutral", title: "Carregando previsão…", detail: null };
+  } else if (!DISEASES_WITH_FORECAST.has(selectedArbovirusDisease) || selectedArbovirusForecast) {
+    arbovirusHeadline = forecastHeadline(selectedArbovirusForecast, selectedArbovirusDisease);
+  } else {
+    arbovirusHeadline = {
+      tone: "neutral",
+      title: "Previsão indisponível",
+      detail: arbovirusPanelError || unavailableForecastMessage(arbovirusPanel?.previsao?.motivo),
+    };
+  }
+  const hasPredictedArbovirusOutbreak = ["inicio", "continuacao"].includes(
+    selectedArbovirusForecast?.situacao
+  );
+  const arbovirusExplanationHorizon = selectedArbovirusForecast?.explicacoes.some(
+    ({ horizonte }) => horizonte === selectedArbovirusHorizon
+  )
+    ? selectedArbovirusHorizon
+    : selectedArbovirusForecast?.principal_horizonte ?? null;
+  const arbovirusExplanation =
+    selectedArbovirusForecast?.explicacoes.find(
+      ({ horizonte }) => horizonte === arbovirusExplanationHorizon
+    ) || null;
+  const arbovirusExplanationMonth =
+    selectedArbovirusForecast?.meses.find(
+      ({ horizonte }) => horizonte === arbovirusExplanationHorizon
+    ) || null;
+  const arbovirusPrincipalMonth =
+    selectedArbovirusForecast?.meses.find(
+      ({ horizonte }) => horizonte === selectedArbovirusForecast.principal_horizonte
+    ) || null;
+  // SHAP de modelos diferentes tem escalas diferentes: as barras comparam só os
+  // fatores desta previsão entre si.
+  const arbovirusExplanationFactors = [...(arbovirusExplanation?.fatores || [])].sort(
+    (left, right) => Math.abs(right.contribuicao) - Math.abs(left.contribuicao)
+  );
+  const arbovirusMaxContribution = Math.max(
+    0,
+    ...arbovirusExplanationFactors.map(({ contribuicao }) => Math.abs(contribuicao || 0))
+  );
+  const arbovirusSeries = arbovirusPanel?.serie?.disponivel
+    ? arbovirusPanel.serie.doencas?.[selectedArbovirusDisease] || []
+    : [];
+  const arbovirusYears = seriesYears(arbovirusSeries);
+  const arbovirusChartYear = arbovirusYears.includes(selectedArbovirusYear)
+    ? selectedArbovirusYear
+    : arbovirusYears[arbovirusYears.length - 1] ?? null;
+  const arbovirusCasesSeries = arbovirusChartYear
+    ? seriesForYear(arbovirusSeries, arbovirusChartYear)
+    : [];
+  const arbovirusComparison = arbovirusPanel?.comparacao?.disponivel
+    ? arbovirusPanel.comparacao
+    : null;
+  const arbovirusPeerItems = (arbovirusComparison?.porte?.itens || []).filter(
+    ({ tema }) => tema === selectedComparisonTopic
+  );
+  const arbovirusNeighbors = arbovirusComparison
+    ? [arbovirusComparison.municipio, ...arbovirusComparison.vizinhos].filter(Boolean)
+    : [];
 
   const indicatorsByDimension = {
     d1: [
@@ -2226,45 +2273,82 @@ const CitySearchDetails = () => {
                     {activeCharacterization.id === "sociodemografica" ? (
                         <div className="px-6 py-5">
                           {detailsView === "visao-inteligente" && (
+                            <div
+                              role="group"
+                              aria-label="Doença"
+                              className="mb-4 flex flex-wrap gap-2"
+                            >
+                              {ARBOVIRUS_DISEASES.map((disease) => (
+                                <button
+                                  key={disease.value}
+                                  type="button"
+                                  aria-pressed={selectedArbovirusDisease === disease.value}
+                                  onClick={() => {
+                                    setSelectedArbovirusDisease(disease.value);
+                                    setSelectedArbovirusHorizon(null);
+                                  }}
+                                  className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff] ${
+                                    selectedArbovirusDisease === disease.value
+                                      ? "border-[#1f4e9b] bg-[#1f4e9b] text-white"
+                                      : "border-[#cbd9eb] bg-white text-[#2b4a6f] hover:bg-[#eef4fc]"
+                                  }`}
+                                >
+                                  {disease.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {detailsView === "visao-inteligente" && (
                             <section
                               aria-label="Previsão de surto de arboviroses"
-                              className={`mb-6 overflow-hidden rounded-xl border-2 ${
-                                hasPredictedArbovirusOutbreak
-                                  ? "border-[#e85858] bg-[#fff5f5]"
-                                  : "border-[#42a675] bg-[#f1fbf6]"
-                              }`}
+                              aria-busy={arbovirusPanelLoading}
+                              className={`mb-6 overflow-hidden rounded-xl border-2 ${BANNER_TONES[arbovirusHeadline.tone].box}`}
                             >
                               <div className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                  <p className={`text-sm font-bold uppercase tracking-[0.08em] ${
-                                    hasPredictedArbovirusOutbreak
-                                      ? "text-[#b42318]"
-                                      : "text-[#24734d]"
-                                  }`}>
+                                <div className="min-w-0">
+                                  <p className={`text-sm font-bold uppercase tracking-[0.08em] ${BANNER_TONES[arbovirusHeadline.tone].eyebrow}`}>
                                     Previsão do modelo
                                   </p>
                                   <h4 className="mt-2 text-2xl font-bold leading-tight text-[#17243a] sm:text-3xl">
-                                    {hasPredictedArbovirusOutbreak
-                                      ? arbovirusOutbreakStartMonth
-                                        ? `Início do surto previsto para ${arbovirusOutbreakStartMonth}`
-                                        : "Mês de início do surto ainda não informado"
-                                      : "Não há previsão de surto nos próximos 6 meses"}
+                                    {arbovirusHeadline.title}
                                   </h4>
-                                  <p className="mt-2 text-sm text-[#51647f]">
-                                    É apenas uma previsão e não deve ser considerado como verdade absoluta!
-                                  </p>
+                                  {arbovirusHeadline.detail && (
+                                    <p className="mt-2 text-sm text-[#51647f]">{arbovirusHeadline.detail}</p>
+                                  )}
+                                  {selectedArbovirusForecast && selectedArbovirusForecast.meses.length > 0 && (
+                                    <ul className="mt-3 flex flex-wrap gap-2" aria-label="Faixa de risco por mês">
+                                      {selectedArbovirusForecast.meses.map((month) => (
+                                        <li
+                                          key={month.horizonte}
+                                          className={`rounded-full px-3 py-1 text-xs font-bold ${RISK_LEVELS[month.faixa_risco]?.className || "bg-[#eef4fc] text-[#2b4a6f]"}`}
+                                        >
+                                          {formatMonthYear(month.ano_alvo, month.mes_alvo)}:{" "}
+                                          {RISK_LEVELS[month.faixa_risco]?.label || month.faixa_risco}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                  {selectedArbovirusForecast && (
+                                    <div className="mt-3 space-y-1 text-sm text-[#51647f]">
+                                      {confidenceMessage(selectedArbovirusForecast.confianca) && (
+                                        <p>{confidenceMessage(selectedArbovirusForecast.confianca)}</p>
+                                      )}
+                                      <p>{referenceMessage(selectedArbovirusForecast.referencia)}</p>
+                                      <p className="pt-1">
+                                        É apenas uma previsão e não deve ser considerado como verdade absoluta!
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={revealArbovirusExplanation}
-                                  className={`shrink-0 rounded-lg border px-5 py-3 text-sm font-bold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-                                    hasPredictedArbovirusOutbreak
-                                      ? "border-[#e85858] bg-white text-[#b42318] hover:bg-[#fff0f0] focus-visible:ring-[#e85858]"
-                                      : "border-[#42a675] bg-white text-[#24734d] hover:bg-[#e8f8ef] focus-visible:ring-[#42a675]"
-                                  }`}
-                                >
-                                  Quer entender essa previsão?
-                                </button>
+                                {arbovirusExplanation && (
+                                  <button
+                                    type="button"
+                                    onClick={revealArbovirusExplanation}
+                                    className={`shrink-0 rounded-lg border bg-white px-5 py-3 text-sm font-bold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${BANNER_TONES[arbovirusHeadline.tone].button}`}
+                                  >
+                                    Quer entender essa previsão?
+                                  </button>
+                                )}
                               </div>
                             </section>
                           )}
@@ -2286,40 +2370,31 @@ const CitySearchDetails = () => {
                                         Série histórica de casos
                                       </h4>
                                       <p className="mt-1 text-sm text-[#5b7596]">
-                                        Casos registrados por mês no município
+                                        Casos confirmados de {selectedArbovirusDiseaseLabel.toLocaleLowerCase("pt-BR")} por mês no município (SINAN)
                                       </p>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                      <label className="text-xs font-semibold text-[#425a78]">
-                                        Doença
-                                        <select
-                                          value={selectedArbovirusDisease}
-                                          onChange={(event) => setSelectedArbovirusDisease(event.target.value)}
-                                          className="mt-1 block min-w-[140px] rounded-md border border-[#cbd9eb] bg-white px-3 py-2 text-sm font-medium text-[#1f2d3d] outline-none focus:border-[#2d7fd3] focus:ring-2 focus:ring-[#d9eafe]"
-                                        >
-                                          {ARBOVIRUS_DISEASE_OPTIONS.map((option) => (
-                                            <option key={option.value} value={option.value}>
-                                              {option.label}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </label>
+                                    {arbovirusYears.length > 0 && (
                                       <label className="text-xs font-semibold text-[#425a78]">
                                         Ano
                                         <select
-                                          value={selectedArbovirusYear}
-                                          onChange={(event) => setSelectedArbovirusYear(event.target.value)}
+                                          value={arbovirusChartYear ?? ""}
+                                          onChange={(event) => setSelectedArbovirusYear(Number(event.target.value))}
                                           className="mt-1 block min-w-[100px] rounded-md border border-[#cbd9eb] bg-white px-3 py-2 text-sm font-medium text-[#1f2d3d] outline-none focus:border-[#2d7fd3] focus:ring-2 focus:ring-[#d9eafe]"
                                         >
-                                          {Object.keys(ARBOVIRUS_CASES_BY_YEAR)
-                                            .sort((left, right) => Number(right) - Number(left))
-                                            .map((year) => (
-                                              <option key={year} value={year}>{year}</option>
-                                            ))}
+                                          {[...arbovirusYears].reverse().map((year) => (
+                                            <option key={year} value={year}>{year}</option>
+                                          ))}
                                         </select>
                                       </label>
-                                    </div>
+                                    )}
                                   </div>
+                                  {arbovirusCasesSeries.length === 0 ? (
+                                    <div className="flex h-[390px] items-center justify-center px-6 text-center text-sm text-[#5b7596]">
+                                      {arbovirusPanelLoading
+                                        ? "Carregando série de casos…"
+                                        : arbovirusPanelError || "Série de casos indisponível para este município."}
+                                    </div>
+                                  ) : (
                                   <div className="-ml-3 h-[390px] w-[calc(100%+12px)]">
                                     <ResponsiveContainer width="100%" height="100%">
                                       <LineChart
@@ -2343,7 +2418,7 @@ const CitySearchDetails = () => {
                                             Number(value).toLocaleString("pt-BR"),
                                             `Casos de ${selectedArbovirusDiseaseLabel}`,
                                           ]}
-                                          labelFormatter={(label) => `${label}/${selectedArbovirusYear}`}
+                                          labelFormatter={(label) => `${label}/${arbovirusChartYear}`}
                                           contentStyle={{
                                             borderRadius: 8,
                                             border: "1px solid #d7e4f5",
@@ -2362,6 +2437,7 @@ const CitySearchDetails = () => {
                                       </LineChart>
                                     </ResponsiveContainer>
                                   </div>
+                                  )}
                                 </>
                               ) : (
                                 <>
@@ -2481,73 +2557,119 @@ const CitySearchDetails = () => {
                                 <>
                                   <div className="mb-4">
                                     <h4 className="text-lg font-semibold text-[#1f2d3d]">
-                                      Comparação com municípios próximos
+                                      Comparação com municípios de porte parecido
                                     </h4>
                                     <p className="mt-1 text-sm text-[#5b7596]">
-                                      Desempenho de {displayCityName} em relação à mediana dos vizinhos
+                                      {arbovirusComparison?.porte?.n_grupo
+                                        ? `${displayCityName} entre os ${arbovirusComparison.porte.n_grupo} municípios de ${city.stateSigla} com ${arbovirusComparison.porte.nome_faixa}`
+                                        : `Posição de ${displayCityName} entre os municípios do mesmo porte`}
                                     </p>
                                   </div>
-                                  <div className="border-y border-[#e7edf7] py-2">
-                                    <div className="grid grid-cols-1 gap-3 text-xs font-bold sm:grid-cols-[minmax(220px,1fr)_minmax(250px,1.25fr)] sm:items-center">
-                                      <label>
-                                        <span className="sr-only">Tópico da comparação</span>
-                                        <select
-                                          value={selectedComparisonTopic}
-                                          onChange={(event) => setSelectedComparisonTopic(event.target.value)}
-                                          className="w-full max-w-[230px] rounded-md border border-[#cbd9eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2d3d] outline-none focus:border-[#2d7fd3] focus:ring-2 focus:ring-[#d9eafe]"
-                                        >
-                                          <option value="saude-vigilancia">Saúde e vigilância</option>
-                                          <option value="contexto">Contexto</option>
-                                          <option value="saneamento">Saneamento</option>
-                                        </select>
-                                      </label>
-                                      <div className="flex justify-between">
-                                        <span className="text-[#dc3f3f]">← pior</span>
-                                        <span className="text-[#425a78]">mediana</span>
-                                        <span className="text-[#2475cf]">melhor →</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    {nearbyMunicipalityComparisons.map((item) => {
-                                      const isBetter = item.higherIsBetter
-                                        ? item.value >= item.median
-                                        : item.value <= item.median;
-                                      const position = item.higherIsBetter
-                                        ? item.percentile
-                                        : 100 - item.percentile;
-
-                                      return (
-                                        <div
-                                          key={item.label}
-                                          className="grid grid-cols-1 gap-3 border-b border-[#e7edf7] py-4 last:border-b-0 sm:grid-cols-[minmax(220px,1fr)_minmax(250px,1.25fr)] sm:items-center"
-                                        >
-                                          <div>
-                                            <p className="text-sm font-bold text-[#17243a]">{item.label}</p>
-                                            <p className="mt-1 text-xs leading-relaxed text-[#425a78]">
-                                              {displayCityName}: {item.value.toLocaleString("pt-BR")} {item.unit}
-                                              {" · "}mediana dos vizinhos: {item.median.toLocaleString("pt-BR")} {item.unit}
-                                            </p>
-                                          </div>
-                                          <div>
-                                            <div className="relative h-5" role="img" aria-label={`${item.label}: percentil ${item.percentile}`}>
-                                              <div className="absolute left-0 right-0 top-2 h-1.5 rounded-full bg-[#dfe6ef]" />
-                                              <div className="absolute left-1/2 top-0 h-5 w-0.5 -translate-x-1/2 bg-[#8da0b8]" />
-                                              <div
-                                                className={`absolute top-0.5 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_#b8c7d9] ${
-                                                  isBetter ? "bg-[#2d7fd3]" : "bg-[#e34d4d]"
-                                                }`}
-                                                style={{ left: `${Math.max(3, Math.min(97, position))}%` }}
-                                              />
-                                            </div>
-                                            <p className={`mt-1 text-xs font-bold ${isBetter ? "text-[#245f9e]" : "text-[#b42318]"}`}>
-                                              {isBetter ? "melhor" : "pior"} que {item.percentile}% dos municípios próximos
-                                            </p>
+                                  {!arbovirusComparison ? (
+                                    <p className="py-6 text-sm text-[#5b7596]">
+                                      {arbovirusPanelLoading
+                                        ? "Carregando comparação…"
+                                        : arbovirusPanelError || "Comparação indisponível para este município."}
+                                    </p>
+                                  ) : arbovirusComparison.porte?.sem_grupo ? (
+                                    <p className="py-6 text-sm text-[#5b7596]">
+                                      {displayCityName} não tem grupo de porte parecido: é muito maior que
+                                      qualquer outro município do estado. A comparação com os vizinhos está abaixo.
+                                    </p>
+                                  ) : (
+                                    <>
+                                      <div className="border-y border-[#e7edf7] py-2">
+                                        <div className="grid grid-cols-1 gap-3 text-xs font-bold sm:grid-cols-[minmax(220px,1fr)_minmax(250px,1.25fr)] sm:items-center">
+                                          <label>
+                                            <span className="sr-only">Tópico da comparação</span>
+                                            <select
+                                              value={selectedComparisonTopic}
+                                              onChange={(event) => setSelectedComparisonTopic(event.target.value)}
+                                              className="w-full max-w-[230px] rounded-md border border-[#cbd9eb] bg-white px-3 py-2 text-sm font-semibold text-[#1f2d3d] outline-none focus:border-[#2d7fd3] focus:ring-2 focus:ring-[#d9eafe]"
+                                            >
+                                              {COMPARISON_TOPICS.map((topic) => (
+                                                <option key={topic.value} value={topic.value}>{topic.label}</option>
+                                              ))}
+                                            </select>
+                                          </label>
+                                          <div className="flex justify-between">
+                                            {selectedComparisonTopic === "contexto" ? (
+                                              <>
+                                                <span className="text-[#5b7596]">← menor</span>
+                                                <span className="text-[#425a78]">mediana</span>
+                                                <span className="text-[#5b7596]">maior →</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <span className="text-[#dc3f3f]">← pior</span>
+                                                <span className="text-[#425a78]">mediana</span>
+                                                <span className="text-[#2475cf]">melhor →</span>
+                                              </>
+                                            )}
                                           </div>
                                         </div>
-                                      );
-                                    })}
-                                  </div>
+                                      </div>
+                                      {arbovirusPeerItems.length === 0 ? (
+                                        <p className="py-6 text-sm text-[#5b7596]">
+                                          Sem dados suficientes deste tema para comparar.
+                                        </p>
+                                      ) : (
+                                        <div>
+                                          {arbovirusPeerItems.map((item) => {
+                                            const isContext = item.maior_melhor === null;
+                                            const position = Math.round(item.posicao);
+                                            const isBetter = item.posicao >= 50;
+                                            let message;
+                                            if (isContext) {
+                                              message = position >= 50
+                                                ? `maior que ${position}% dos municípios de porte parecido`
+                                                : `menor que ${100 - position}% dos municípios de porte parecido`;
+                                            } else {
+                                              message = isBetter
+                                                ? `melhor que ${position}% dos municípios de porte parecido`
+                                                : `pior que ${100 - position}% dos municípios de porte parecido`;
+                                            }
+                                            let tone = "text-[#b42318]";
+                                            let marker = "bg-[#e34d4d]";
+                                            if (isContext) {
+                                              tone = "text-[#425a78]";
+                                              marker = "bg-[#8da0b8]";
+                                            } else if (isBetter) {
+                                              tone = "text-[#245f9e]";
+                                              marker = "bg-[#2d7fd3]";
+                                            }
+
+                                            return (
+                                              <div
+                                                key={item.id}
+                                                className="grid grid-cols-1 gap-3 border-b border-[#e7edf7] py-4 last:border-b-0 sm:grid-cols-[minmax(220px,1fr)_minmax(250px,1.25fr)] sm:items-center"
+                                              >
+                                                <div>
+                                                  <p className="text-sm font-bold text-[#17243a]">{item.rotulo}</p>
+                                                  <p className="mt-1 text-xs leading-relaxed text-[#425a78]">
+                                                    {displayCityName}: {formatComparisonValue(item.valor, item.unidade)}
+                                                    {" · "}mediana: {formatComparisonValue(item.mediana, item.unidade)}
+                                                    {item.periodo ? ` · dado de ${item.periodo}` : ""}
+                                                  </p>
+                                                </div>
+                                                <div>
+                                                  <div className="relative h-5" role="img" aria-label={`${item.rotulo}: ${message}`}>
+                                                    <div className="absolute left-0 right-0 top-2 h-1.5 rounded-full bg-[#dfe6ef]" />
+                                                    <div className="absolute left-1/2 top-0 h-5 w-0.5 -translate-x-1/2 bg-[#8da0b8]" />
+                                                    <div
+                                                      className={`absolute top-0.5 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_#b8c7d9] ${marker}`}
+                                                      style={{ left: `${Math.max(3, Math.min(97, item.posicao))}%` }}
+                                                    />
+                                                  </div>
+                                                  <p className={`mt-1 text-xs font-bold ${tone}`}>{message}</p>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
                                 </>
                               ) : (
                                 <>
@@ -2663,6 +2785,104 @@ const CitySearchDetails = () => {
                               )}
                             </div>
                           </div>
+                          {detailsView === "visao-inteligente" && arbovirusNeighbors.length > 1 && (
+                            <section
+                              aria-labelledby="arbovirus-neighbors-title"
+                              className="mt-6 overflow-hidden rounded-lg border border-[#dce6f4] bg-white"
+                            >
+                              <div className="border-b border-[#e7edf7] px-5 py-4">
+                                <h4 id="arbovirus-neighbors-title" className="text-lg font-semibold text-[#1f2d3d]">
+                                  Os vizinhos
+                                </h4>
+                                <p className="mt-1 text-sm text-[#5b7596]">
+                                  Os {arbovirusNeighbors.length - 1} municípios mais próximos de {displayCityName}. O
+                                  mosquito não respeita divisa: o que acontece ao lado importa mesmo quando o vizinho
+                                  tem outro porte.
+                                </p>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="w-full min-w-[640px] text-left text-sm text-[#17243a]">
+                                  <thead className="bg-[#f8faff] text-xs font-bold text-[#5b7596]">
+                                    <tr>
+                                      <th scope="col" className="px-5 py-3">Município</th>
+                                      <th scope="col" className="px-3 py-3 text-right">Distância</th>
+                                      <th scope="col" className="px-3 py-3 text-right">População</th>
+                                      <th scope="col" className="px-3 py-3">
+                                        Faixa de risco
+                                        {arbovirusPrincipalMonth
+                                          ? ` em ${formatMonthYear(arbovirusPrincipalMonth.ano_alvo, arbovirusPrincipalMonth.mes_alvo)}`
+                                          : ""}
+                                      </th>
+                                      <th scope="col" className="px-5 py-3 text-right">
+                                        Casos confirmados por 100 mil hab.
+                                        {arbovirusComparison.periodo_incidencia
+                                          ? ` ${describeMonthRange([
+                                            {
+                                              ano_alvo: arbovirusComparison.periodo_incidencia.de.ano,
+                                              mes_alvo: arbovirusComparison.periodo_incidencia.de.mes,
+                                            },
+                                            {
+                                              ano_alvo: arbovirusComparison.periodo_incidencia.ate.ano,
+                                              mes_alvo: arbovirusComparison.periodo_incidencia.ate.mes,
+                                            },
+                                          ])}`
+                                          : ""}
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-[#e7edf7]">
+                                    {arbovirusNeighbors.map((neighbor) => {
+                                      const isSelf =
+                                        neighbor.municipio_cod_ibge === arbovirusComparison.municipio?.municipio_cod_ibge;
+                                      const riskLevel = DISEASES_WITH_FORECAST.has(selectedArbovirusDisease)
+                                        ? neighbor.faixas?.[selectedArbovirusDisease]
+                                        : null;
+                                      const incidence = neighbor.incidencia?.[selectedArbovirusDisease];
+
+                                      return (
+                                        <tr key={neighbor.municipio_cod_ibge} className={isSelf ? "bg-[#f3f7fd]" : undefined}>
+                                          <td className="px-5 py-3 font-semibold">
+                                            {isSelf ? (
+                                              `${toDisplayName(neighbor.municipio_nome)} (este município)`
+                                            ) : (
+                                              <Link
+                                                to={`/municipios/${neighbor.friendlyName}`}
+                                                className="text-[#2475cf] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff]"
+                                              >
+                                                {toDisplayName(neighbor.municipio_nome)}
+                                              </Link>
+                                            )}
+                                          </td>
+                                          <td className="px-3 py-3 text-right tabular-nums">
+                                            {isSelf ? "—" : `${Math.round(neighbor.distancia_km)} km`}
+                                          </td>
+                                          <td className="px-3 py-3 text-right tabular-nums">
+                                            {Number.isFinite(neighbor.populacao)
+                                              ? neighbor.populacao.toLocaleString("pt-BR")
+                                              : "sem dado"}
+                                          </td>
+                                          <td className="px-3 py-3">
+                                            {riskLevel ? (
+                                              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${RISK_LEVELS[riskLevel]?.className || ""}`}>
+                                                {RISK_LEVELS[riskLevel]?.label || riskLevel}
+                                              </span>
+                                            ) : (
+                                              <span className="text-[#5b7596]">sem previsão</span>
+                                            )}
+                                          </td>
+                                          <td className="px-5 py-3 text-right tabular-nums">
+                                            {Number.isFinite(incidence)
+                                              ? incidence.toLocaleString("pt-BR", { maximumFractionDigits: 1 })
+                                              : "sem dado"}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </section>
+                          )}
                           {detailsView === "visao-inteligente" && (
                             <section
                               aria-labelledby="arbovirus-recommendations-title"
@@ -2677,13 +2897,13 @@ const CitySearchDetails = () => {
                                   className="mt-1 text-xl font-bold text-[#17243a]"
                                 >
                                   {hasPredictedArbovirusOutbreak
-                                    ? "Diretrizes para prevenção e controle"
+                                    ? "Diretrizes e projetos de lei para prevenção e controle"
                                     : "Projetos de lei para prevenir arboviroses"}
                                 </h4>
                               </div>
 
-                              {hasPredictedArbovirusOutbreak ? (
-                                <div className="px-5 py-5">
+                              {hasPredictedArbovirusOutbreak && (
+                                <div className="border-b border-[#e7edf7] bg-[#fff8f7] px-5 py-5">
                                   <p className="text-sm leading-6 text-[#51647f]">
                                     Diante da previsão de surto, consulte as orientações nacionais para
                                     vigilância entomológica, prevenção e controle vetorial das arboviroses urbanas.
@@ -2697,7 +2917,7 @@ const CitySearchDetails = () => {
                                     Abrir diretrizes do Ministério da Saúde
                                   </a>
                                 </div>
-                              ) : (
+                              )}
                                 <div>
                                   {sonarProjectsLoading && (
                                     <p className="px-5 py-6 text-sm text-[#5b7596]" role="status">
@@ -2716,7 +2936,27 @@ const CitySearchDetails = () => {
                                   )}
                                   {!sonarProjectsLoading && !sonarProjectsError && sonarRecommendations.temas.length > 0 && (
                                     <>
-                                      {sonarRecommendations.perfil.length > 0 && (
+                                      {sonarRecommendations.fonte_temas === "previsao" && sonarRecommendations.previsao && (
+                                        <div className="border-b border-[#e7edf7] px-5 py-4">
+                                          <p className="text-sm text-[#51647f]">
+                                            Busca orientada pela previsão de{" "}
+                                            {diseaseLabel(sonarRecommendations.previsao.doenca).toLocaleLowerCase("pt-BR")} para{" "}
+                                            {formatMonthYear(sonarRecommendations.previsao.ano_alvo, sonarRecommendations.previsao.mes_alvo)}:
+                                            os grupos de fatores acionáveis que mais aumentaram o risco.
+                                          </p>
+                                          <ul className="mt-2 flex flex-wrap gap-2">
+                                            {sonarRecommendations.previsao.grupos.map((grupo) => (
+                                              <li
+                                                key={grupo.grupo_sigla}
+                                                className="rounded-full bg-[#fdecea] px-3 py-1 text-xs font-semibold text-[#8f1c13]"
+                                              >
+                                                {grupo.grupo_nome}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                      {sonarRecommendations.fonte_temas !== "previsao" && sonarRecommendations.perfil.length > 0 && (
                                         <div className="border-b border-[#e7edf7] px-5 py-4">
                                           <p className="text-sm text-[#51647f]">
                                             Busca ajustada ao perfil de {displayCityName}:
@@ -2791,17 +3031,14 @@ const CitySearchDetails = () => {
                                     </>
                                   )}
                                 </div>
-                              )}
 
-                              {!hasPredictedArbovirusOutbreak && (
-                                <div className="border-t border-[#e7edf7] bg-[#f8faff] px-5 py-3 text-xs text-[#5b7596]">
-                                  Sugestões obtidas por busca semântica no Sonar Municipal; avalie a adequação
-                                  jurídica e o contexto local antes da adoção.
-                                </div>
-                              )}
+                              <div className="border-t border-[#e7edf7] bg-[#f8faff] px-5 py-3 text-xs text-[#5b7596]">
+                                Sugestões obtidas por busca semântica no Sonar Municipal; avalie a adequação
+                                jurídica e o contexto local antes da adoção.
+                              </div>
                             </section>
                           )}
-                          {detailsView === "visao-inteligente" && showArbovirusExplanation && (
+                          {detailsView === "visao-inteligente" && showArbovirusExplanation && arbovirusExplanation && (
                             <section
                               ref={arbovirusExplanationRef}
                               aria-labelledby="arbovirus-shap-title"
@@ -2809,11 +3046,36 @@ const CitySearchDetails = () => {
                             >
                               <div className="border-b border-[#e7edf7] px-5 py-4">
                                 <h4 id="arbovirus-shap-title" className="text-xl font-bold text-[#17243a]">
-                                  O que influenciou esta previsão?
+                                  O que influenciou a previsão de {selectedArbovirusDiseaseLabel.toLocaleLowerCase("pt-BR")}
+                                  {arbovirusExplanationMonth
+                                    ? ` para ${formatMonthYear(arbovirusExplanationMonth.ano_alvo, arbovirusExplanationMonth.mes_alvo)}`
+                                    : ""}
+                                  ?
                                 </h4>
                                 <p className="mt-1 text-sm text-[#5b7596]">
-                                  Valores SHAP mostram quanto cada fator puxou o risco de surto para baixo ou para cima.
+                                  Valores SHAP mostram quanto cada fator puxou o risco de surto para baixo ou para
+                                  cima. O tamanho das barras compara os fatores desta previsão entre si; a escala muda
+                                  de uma doença para outra.
                                 </p>
+                                {selectedArbovirusForecast.explicacoes.length > 1 && (
+                                  <div role="group" aria-label="Mês previsto" className="mt-3 flex flex-wrap gap-2">
+                                    {selectedArbovirusForecast.meses.map((month) => (
+                                      <button
+                                        key={month.horizonte}
+                                        type="button"
+                                        aria-pressed={month.horizonte === arbovirusExplanationHorizon}
+                                        onClick={() => setSelectedArbovirusHorizon(month.horizonte)}
+                                        className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff] ${
+                                          month.horizonte === arbovirusExplanationHorizon
+                                            ? "border-[#1f4e9b] bg-[#1f4e9b] text-white"
+                                            : "border-[#cbd9eb] bg-white text-[#2b4a6f] hover:bg-[#eef4fc]"
+                                        }`}
+                                      >
+                                        {formatMonthYear(month.ano_alvo, month.mes_alvo)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                               <div className="px-5">
                                 <div className="grid grid-cols-1 border-b border-[#e7edf7] py-3 text-xs font-bold sm:grid-cols-[minmax(280px,1.1fr)_minmax(360px,1fr)]">
@@ -2823,20 +3085,33 @@ const CitySearchDetails = () => {
                                     <span className="text-[#dc3f3f]">empurra para cima →</span>
                                   </div>
                                 </div>
-                                {ARBOVIRUS_SHAP_FACTORS.map((factor) => {
-                                  const width = Math.min(47, (Math.abs(factor.impact) / 0.06) * 47);
-                                  const isPositive = factor.impact > 0;
+                                {arbovirusExplanationFactors.length === 0 && (
+                                  <p className="py-6 text-sm text-[#5b7596]">
+                                    Sem fatores registrados para esta previsão.
+                                  </p>
+                                )}
+                                {arbovirusExplanationFactors.map((factor) => {
+                                  const width = arbovirusMaxContribution > 0
+                                    ? (Math.abs(factor.contribuicao) / arbovirusMaxContribution) * 47
+                                    : 0;
+                                  const isPositive = factor.contribuicao > 0;
 
                                   return (
                                     <div
-                                      key={factor.label}
+                                      key={factor.fator_sigla}
                                       className="grid grid-cols-1 gap-3 border-b border-[#e7edf7] py-4 last:border-b-0 sm:grid-cols-[minmax(280px,1.1fr)_minmax(360px,1fr)] sm:items-center"
                                     >
                                       <div>
-                                        <p className="text-sm font-bold text-[#17243a]">{factor.label}</p>
-                                        <p className="mt-1 text-xs text-[#425a78]">valor: {factor.valueLabel}</p>
+                                        <p className="text-sm font-bold text-[#17243a]">{factor.fator_nome}</p>
+                                        <p className="mt-1 text-xs text-[#425a78]">
+                                          valor: {formatFactorValue(factor.fator_valor, factor.fator_unidade)}
+                                        </p>
                                       </div>
-                                      <div className="relative h-7">
+                                      <div
+                                        className="relative h-7"
+                                        role="img"
+                                        aria-label={`${factor.fator_nome}: ${isPositive ? "aumenta" : "diminui"} o risco`}
+                                      >
                                         <div className="absolute bottom-0 left-1/2 top-0 w-px bg-[#b8c7d9]" />
                                         <div
                                           className={`absolute top-1 h-5 rounded ${isPositive ? "bg-[#e84c4c]" : "bg-[#327dd4]"}`}
@@ -2844,15 +3119,6 @@ const CitySearchDetails = () => {
                                             ? { left: "50%", width: `${width}%` }
                                             : { left: `${50 - width}%`, width: `${width}%` }}
                                         />
-                                        <span
-                                          className={`absolute top-1 text-xs font-bold leading-5 text-[#17243a] ${isPositive ? "ml-2" : "-translate-x-full pr-2"}`}
-                                          style={{ left: isPositive ? `${50 + width}%` : `${50 - width}%` }}
-                                        >
-                                          {factor.impact > 0 ? "+" : ""}{factor.impact.toLocaleString("pt-BR", {
-                                            minimumFractionDigits: 2,
-                                            maximumFractionDigits: 2,
-                                          })}
-                                        </span>
                                       </div>
                                     </div>
                                   );

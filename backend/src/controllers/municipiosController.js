@@ -504,6 +504,7 @@ async function getComparativoMunicipiosSemelhantes(req, res) {
 module.exports = {
   parseIndicadorReferencias,
   parseVariavelSigla,
+  toFriendlyName,
   getMunicipios,
   buscarMunicipios,
   getMunicipioPorSlug,

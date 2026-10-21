@@ -6,6 +6,7 @@ const municipiosRoutes = require("./routes/municipiosRoutes");
 const assistenteRoutes = require("./routes/assistenteRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const sonarMunicipalRoutes = require("./routes/sonarMunicipalRoutes");
+const arbovirosesRoutes = require("./routes/arbovirosesRoutes");
 const { createCsrfProtection } = require("./middleware/csrfMiddleware");
 
 const app = express();
@@ -46,6 +47,7 @@ app.use("/api", sonarMunicipalRoutes);
 app.use("/api", authRoutes);
 app.use("/api", adminRoutes);
 app.use("/api", formularioRoutes);
+app.use("/api", arbovirosesRoutes);
 app.use("/api", municipiosRoutes);
 
 module.exports = app;

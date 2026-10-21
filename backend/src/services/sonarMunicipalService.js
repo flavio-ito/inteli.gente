@@ -126,7 +126,49 @@ const ARBOVIRUS_THEMES = [
     motivo: () => "Ações educativas contínuas têm baixo custo e se aplicam a municípios de qualquer porte.",
     universal: true,
   },
+  // Temas que só entram pela previsão de surto, quando o grupo correspondente
+  // aumentou o risco previsto (ver TEMAS_POR_GRUPO).
+  {
+    id: "vigilancia",
+    titulo: "Vigilância epidemiológica",
+    query: "Intensificar vigilância epidemiológica e notificação de casos de dengue no município",
+    termos: ["vigilancia", "notifica", "alerta", "divulga", "comite", "boletim", "monitora"],
+    motivo: () => null,
+    apenasPrevisao: true,
+  },
+  {
+    id: "agentes_endemias",
+    titulo: "Agentes de saúde e de combate às endemias",
+    query: "Contratar e capacitar agentes de combate às endemias para o controle do Aedes aegypti",
+    termos: ["agente", "endemia"],
+    motivo: () => null,
+    apenasPrevisao: true,
+  },
+  {
+    id: "alagamento",
+    titulo: "Alagamentos e áreas de risco",
+    query:
+      "Mapear áreas de risco de alagamento e enchente e evitar água parada que forma criadouros do mosquito",
+    termos: ["alagament", "enchente", "inunda", "area de risco", "areas de risco"],
+    motivo: () => null,
+    apenasPrevisao: true,
+  },
 ];
+
+// Grupos de fatores da previsão que uma política municipal alcança, com os temas
+// que respondem a cada um, do mais direto para o mais amplo.
+const TEMAS_POR_GRUPO = {
+  servicos_de_saude: ["vigilancia", "agentes_endemias", "imoveis_fechados"],
+  ambiente: ["drenagem", "alagamento"],
+  saneamento: ["saneamento"],
+};
+// Mais candidatos que vagas, porque um tema pode não ter PL que cite os seus termos.
+const MAX_CANDIDATE_THEMES = 6;
+const NOMES_MESES = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+const NOMES_DOENCAS = { dengue: "dengue", zika: "zika", chikungunya: "chikungunya" };
 
 const searchCache = new Map();
 
@@ -206,14 +248,56 @@ function montarPerfilArboviroses(indicadorRows = []) {
   return perfil;
 }
 
-function selecionarTemasArboviroses(perfil) {
-  const withReason = ARBOVIRUS_THEMES
-    .map((theme) => ({ ...theme, motivo: theme.motivo(perfil) }))
-    .filter((theme) => theme.motivo);
-  const conditional = withReason.filter((theme) => !theme.universal).slice(0, MAX_CONDITIONAL_THEMES);
-  const universal = withReason.filter((theme) => theme.universal);
+function motivoPorGrupo(grupo, ordem, previsao, temaAdicional) {
+  const quando = `de ${NOMES_DOENCAS[previsao.doenca] || previsao.doenca} para ` +
+    `${NOMES_MESES[previsao.mes_alvo - 1]} de ${previsao.ano_alvo}`;
+  if (temaAdicional) {
+    const nome = grupo.grupo_nome.charAt(0).toLocaleLowerCase("pt-BR") + grupo.grupo_nome.slice(1);
+    return `Outra frente ligada a ${nome}, ${ordem === 0 ? "o grupo que mais aumentou" : "que também aumentou"} ` +
+      `o risco previsto ${quando}.`;
+  }
+  return ordem === 0
+    ? `${grupo.grupo_nome} é o grupo de fatores acionáveis que mais aumentou o risco previsto ${quando}.`
+    : `${grupo.grupo_nome} também aumentou o risco previsto ${quando}.`;
+}
 
-  return [...conditional, ...universal];
+// Com previsão de surto, os temas saem dos grupos acionáveis que mais aumentaram o
+// risco previsto: primeiro um tema de cada grupo, na ordem da contribuição, depois
+// os demais temas dos grupos que mais pesaram. Os temas do perfil do município
+// (água, esgoto, lixo, inundação e porte) completam a lista e são a alternativa
+// quando não há previsão; os universais vêm por último.
+function selecionarTemasArboviroses(perfil, previsao = null) {
+  const porId = new Map(ARBOVIRUS_THEMES.map((theme) => [theme.id, theme]));
+  const escolhidos = [];
+  const adicionar = (theme, motivo, origem) => {
+    if (!theme || !motivo || escolhidos.some((escolhido) => escolhido.id === theme.id)) return;
+    escolhidos.push({ ...theme, motivo, origem });
+  };
+
+  const grupos = previsao?.grupos || [];
+  grupos.forEach((grupo, ordem) => {
+    const [primeiro] = TEMAS_POR_GRUPO[grupo.grupo_sigla] || [];
+    adicionar(porId.get(primeiro), motivoPorGrupo(grupo, ordem, previsao, false), "previsao");
+  });
+  grupos.forEach((grupo, ordem) => {
+    for (const id of (TEMAS_POR_GRUPO[grupo.grupo_sigla] || []).slice(1)) {
+      adicionar(porId.get(id), motivoPorGrupo(grupo, ordem, previsao, true), "previsao");
+    }
+  });
+
+  const withReason = ARBOVIRUS_THEMES
+    .filter((theme) => !theme.apenasPrevisao)
+    .map((theme) => ({ theme, motivo: theme.motivo(perfil) }))
+    .filter(({ motivo }) => motivo);
+  withReason
+    .filter(({ theme }) => !theme.universal)
+    .slice(0, MAX_CONDITIONAL_THEMES)
+    .forEach(({ theme, motivo }) => adicionar(theme, motivo, "perfil"));
+  withReason
+    .filter(({ theme }) => theme.universal)
+    .forEach(({ theme, motivo }) => adicionar(theme, motivo, "perfil"));
+
+  return escolhidos.slice(0, MAX_CANDIDATE_THEMES);
 }
 
 function mentionsThemeTerms(project, terms) {
@@ -313,9 +397,15 @@ function limparCacheSonar() {
   searchCache.clear();
 }
 
-async function buscarProjetosArboviroses({ indicadores = [], search = pesquisarSonarComCache } = {}) {
+// `previsao`, quando houver: { doenca, ano_alvo, mes_alvo, grupos }, com os grupos
+// acionáveis que aumentaram o risco na previsão principal, do maior para o menor.
+async function buscarProjetosArboviroses({
+  indicadores = [],
+  previsao = null,
+  search = pesquisarSonarComCache,
+} = {}) {
   const perfil = montarPerfilArboviroses(indicadores);
-  const temas = selecionarTemasArboviroses(perfil);
+  const temas = selecionarTemasArboviroses(perfil, previsao);
   const settled = await Promise.allSettled(temas.map((tema) => search(tema.query)));
 
   const failures = settled.filter((result) => result.status === "rejected");
@@ -350,11 +440,30 @@ async function buscarProjetosArboviroses({ indicadores = [], search = pesquisarS
     }
 
     if (projetos.length > 0) {
-      temasComProjetos.push({ id: tema.id, titulo: tema.titulo, motivo: tema.motivo, projetos });
+      temasComProjetos.push({
+        id: tema.id,
+        titulo: tema.titulo,
+        motivo: tema.motivo,
+        origem: tema.origem,
+        projetos,
+      });
     }
   });
 
+  const orientadaPelaPrevisao = temasComProjetos.some((tema) => tema.origem === "previsao");
   return {
+    fonte_temas: orientadaPelaPrevisao ? "previsao" : "perfil",
+    previsao: orientadaPelaPrevisao
+      ? {
+        doenca: previsao.doenca,
+        ano_alvo: previsao.ano_alvo,
+        mes_alvo: previsao.mes_alvo,
+        grupos: previsao.grupos.map(({ grupo_sigla: sigla, grupo_nome: nome }) => ({
+          grupo_sigla: sigla,
+          grupo_nome: nome,
+        })),
+      }
+      : null,
     perfil: PROFILE_INDICATORS.filter(({ id }) => perfil[id]).map(({ id, rotulo, unidade }) => ({
       id,
       rotulo,

@@ -229,3 +229,67 @@ test("não repete a busca quando o Sonar rejeita a consulta", async (t) => {
   await assert.rejects(pesquisarSonar("", { retryDelayMs: 0 }), /status 400: Informe a query/);
   assert.equal(fetchMock.mock.callCount(), 1);
 });
+
+const PREVISAO_DEZEMBRO = {
+  doenca: "dengue",
+  ano_alvo: 2026,
+  mes_alvo: 12,
+  grupos: [
+    { grupo_sigla: "servicos_de_saude", grupo_nome: "Serviços de saúde", contribuicao: 0.19 },
+    { grupo_sigla: "ambiente", grupo_nome: "Ambiente e riscos", contribuicao: 0.13 },
+  ],
+};
+
+test("com previsão, escolhe os temas pelos grupos que mais aumentaram o risco", () => {
+  const temas = selecionarTemasArboviroses(montarPerfilArboviroses(CIDADE_GRANDE_SANEADA), PREVISAO_DEZEMBRO);
+
+  assert.deepEqual(
+    temas.map(({ id, origem }) => [id, origem]),
+    [
+      ["vigilancia", "previsao"],
+      ["drenagem", "previsao"],
+      ["agentes_endemias", "previsao"],
+      ["imoveis_fechados", "previsao"],
+      ["alagamento", "previsao"],
+      ["pontos_estrategicos", "perfil"],
+    ],
+  );
+  assert.equal(
+    temas[0].motivo,
+    "Serviços de saúde é o grupo de fatores acionáveis que mais aumentou o risco previsto de dengue para dezembro de 2026.",
+  );
+  assert.equal(temas[1].motivo, "Ambiente e riscos também aumentou o risco previsto de dengue para dezembro de 2026.");
+  assert.match(temas[2].motivo, /^Outra frente ligada a serviços de saúde, o grupo que mais aumentou/);
+});
+
+test("sem previsão, os temas que dependem dela não entram", () => {
+  const temas = selecionarTemasArboviroses(montarPerfilArboviroses(CIDADE_PEQUENA_COM_DEFICITS), null);
+
+  assert.ok(temas.every(({ origem }) => origem === "perfil"));
+  assert.ok(!temas.some(({ id }) => ["vigilancia", "agentes_endemias", "alagamento"].includes(id)));
+});
+
+test("informa quando a busca foi orientada pela previsão", async () => {
+  const search = async (query) =>
+    query.includes("vigilância epidemiológica")
+      ? [sonarResult(1, "Instituir comitê de vigilância e enfrentamento da dengue no município.")]
+      : [];
+
+  const resultado = await buscarProjetosArboviroses({
+    indicadores: CIDADE_GRANDE_SANEADA,
+    previsao: PREVISAO_DEZEMBRO,
+    search,
+  });
+
+  assert.equal(resultado.fonte_temas, "previsao");
+  assert.deepEqual(resultado.temas.map(({ id, origem }) => [id, origem]), [["vigilancia", "previsao"]]);
+  assert.deepEqual(resultado.previsao, {
+    doenca: "dengue",
+    ano_alvo: 2026,
+    mes_alvo: 12,
+    grupos: [
+      { grupo_sigla: "servicos_de_saude", grupo_nome: "Serviços de saúde" },
+      { grupo_sigla: "ambiente", grupo_nome: "Ambiente e riscos" },
+    ],
+  });
+});
