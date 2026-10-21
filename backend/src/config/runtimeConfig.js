@@ -78,6 +78,15 @@ function validateRuntimeConfiguration() {
     errors.push("SMTP_SECURE deve ser true ou false");
   }
 
+  if (configured(process.env.SONAR_API_URL)) {
+    try {
+      const parsed = new URL(String(process.env.SONAR_API_URL).trim());
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("protocolo inválido");
+    } catch {
+      errors.push("SONAR_API_URL deve ser uma URL HTTP ou HTTPS válida");
+    }
+  }
+
   const dkimVariables = ["DKIM_DOMAIN_NAME", "DKIM_PRIVATE_KEY", "DKIM_SELECTOR"];
   const configuredDkimVariables = dkimVariables.filter((name) => configured(process.env[name]));
   if (configuredDkimVariables.length > 0 && configuredDkimVariables.length !== dkimVariables.length) {

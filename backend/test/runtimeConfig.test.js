@@ -6,7 +6,7 @@ const NAMES = [
   "ALLOW_PERSONAL_EMAIL_REGISTRATION", "APP_BASE_URL", "AUTH_SECRET", "CORS_ORIGIN", "NODE_ENV",
   "DKIM_DOMAIN_NAME", "DKIM_PRIVATE_KEY", "DKIM_SELECTOR",
   "PERSONAL_EMAIL_TEST_MUNICIPIO_COD_IBGE", "SMTP_FROM",
-  "SMTP_HOST", "SMTP_PASSWORD", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER",
+  "SMTP_HOST", "SMTP_PASSWORD", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SONAR_API_URL",
 ];
 
 function withEnvironment(values, callback) {
@@ -96,3 +96,14 @@ test("rejeita placeholders de segredos no ambiente de produção", () =>
     },
     () => assert.throws(validateRuntimeConfiguration, /AUTH_SECRET.*SMTP_PASSWORD/s),
   ));
+
+test("rejeita SONAR_API_URL que não seja uma URL HTTP", () => {
+  const base = {
+    AUTH_SECRET: "segredo-de-desenvolvimento-com-mais-de-32-caracteres",
+    NODE_ENV: "development",
+  };
+  withEnvironment({ ...base, SONAR_API_URL: "http://127.0.0.1:3000" }, () =>
+    assert.doesNotThrow(validateRuntimeConfiguration));
+  withEnvironment({ ...base, SONAR_API_URL: "127.0.0.1:3000" }, () =>
+    assert.throws(validateRuntimeConfiguration, /SONAR_API_URL deve ser uma URL HTTP ou HTTPS válida/));
+});

@@ -404,6 +404,28 @@ async function buscarVariaveisMunicipio(municipioCodIbge, siglas) {
   return variaveis;
 }
 
+async function buscarIndicadoresRecentesMunicipio(municipioCodIbge, indicadorReferencias) {
+  if (!indicadorReferencias || indicadorReferencias.length === 0) {
+    return [];
+  }
+
+  const result = await pool.query(
+    `
+    SELECT DISTINCT ON (indicador_referencia)
+      indicador_referencia,
+      ano,
+      indicador_valor
+    FROM bd.municipio_apresenta_indicador
+    WHERE municipio_cod_ibge = $1
+      AND indicador_referencia = ANY($2::int[])
+    ORDER BY indicador_referencia, ano DESC NULLS LAST
+    `,
+    [municipioCodIbge, indicadorReferencias]
+  );
+
+  return result.rows;
+}
+
 async function listarIndicadoresMunicipio(municipioCodIbge) {
   const query = `
     WITH fallback_indicadores(indicador_referencia, indicador_nome) AS (
@@ -1187,6 +1209,7 @@ module.exports = {
   buscarMunicipioPorCodigo,
   buscarMunicipioPorSlug,
   buscarVariaveisMunicipio,
+  buscarIndicadoresRecentesMunicipio,
   listarIndicadoresMunicipio,
   listarNiveisIndicadoresMunicipios,
   obterResumoPontuacaoDimensao,

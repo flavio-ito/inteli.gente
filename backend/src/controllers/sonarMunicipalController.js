@@ -1,5 +1,11 @@
-const { buscarMunicipioPorCodigo } = require("../repositories/municipiosRepository");
-const { buscarProjetosArboviroses } = require("../services/sonarMunicipalService");
+const {
+  buscarIndicadoresRecentesMunicipio,
+  buscarMunicipioPorCodigo,
+} = require("../repositories/municipiosRepository");
+const {
+  PROFILE_INDICATOR_REFERENCES,
+  buscarProjetosArboviroses,
+} = require("../services/sonarMunicipalService");
 
 async function listarProjetosArboviroses(req, res) {
   const municipioCodIbge = Number(req.params.municipioCodIbge);
@@ -12,12 +18,13 @@ async function listarProjetosArboviroses(req, res) {
     const municipio = await buscarMunicipioPorCodigo(municipioCodIbge);
     if (!municipio) return res.status(404).json({ error: "Município não encontrado" });
 
-    const projetos = await buscarProjetosArboviroses({
-      municipioNome: municipio.municipio_nome,
-      estadoSigla: municipio.estado_sigla,
-    });
+    const indicadores = await buscarIndicadoresRecentesMunicipio(
+      municipioCodIbge,
+      PROFILE_INDICATOR_REFERENCES,
+    );
+    const recomendacoes = await buscarProjetosArboviroses({ indicadores });
 
-    return res.json({ projetos });
+    return res.json(recomendacoes);
   } catch (error) {
     console.error("Erro ao consultar o Sonar Municipal:", error);
     return res.status(502).json({ error: "Sonar Municipal temporariamente indisponível" });

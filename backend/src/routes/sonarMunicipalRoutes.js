@@ -3,9 +3,11 @@ const { listarProjetosArboviroses } = require("../controllers/sonarMunicipalCont
 const { createRateLimiter } = require("../middleware/rateLimitMiddleware");
 
 const router = express.Router();
+// A página de cada município consulta esta rota ao abrir. O Sonar é local e as
+// buscas ficam em cache, então o limite só precisa barrar abuso, não poupar a API.
 const rateLimiter = createRateLimiter({
   keyPrefix: "sonar-municipal",
-  max: 20,
+  max: 120,
   windowMs: 15 * 60 * 1000,
 });
 

@@ -20,3 +20,7 @@ ai-service/.cache/
 ai-service/.pytest_cache/
 ai-service/**/__pycache__/
 *.log
+
+# Dumps do banco (contém dados de usuários)
+*.dump
+*.backup

@@ -54,25 +54,23 @@ const isPredictedArbovirusOutbreak = (value) =>
     String(value ?? "").trim().toLocaleLowerCase("pt-BR")
   );
 
-const getArbovirusOutbreakPrediction = (cityData) => {
-  const cityCode = cityData?.municipio_cod_ibge ?? cityData?.code;
-
-  if (String(cityCode) === "3548906") return true;
-
-  return cityData?.previsao_surto_arboviroses ?? cityData?.arboviroses_surto_6_meses ?? false;
-};
+const getArbovirusOutbreakPrediction = (cityData) =>
+  cityData?.previsao_surto_arboviroses ?? cityData?.arboviroses_surto_6_meses ?? false;
 
 const getArbovirusOutbreakStartMonth = (cityData) => {
-  const cityCode = cityData?.municipio_cod_ibge ?? cityData?.code;
-
-  if (String(cityCode) === "3548906") return "janeiro de 2027";
-
   return (
     cityData?.previsao_mes_inicio_surto_arboviroses ??
     cityData?.arboviroses_mes_inicio_surto ??
     null
   );
 };
+
+const formatSonarProfileValue = ({ unidade, valor }) =>
+  unidade === "habitantes"
+    ? `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} hab.`
+    : `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+
+const EMPTY_SONAR_RECOMMENDATIONS = { perfil: [], temas: [] };
 
 const formatMobileBroadbandCoverage = (value) => {
   const parsedValue = Number(value);
@@ -807,7 +805,7 @@ const CitySearchDetails = () => {
   const [selectedArbovirusYear, setSelectedArbovirusYear] = useState("2025");
   const [selectedComparisonTopic, setSelectedComparisonTopic] = useState("saude-vigilancia");
   const [showArbovirusExplanation, setShowArbovirusExplanation] = useState(false);
-  const [sonarProjects, setSonarProjects] = useState([]);
+  const [sonarRecommendations, setSonarRecommendations] = useState(EMPTY_SONAR_RECOMMENDATIONS);
   const [sonarProjectsLoading, setSonarProjectsLoading] = useState(false);
   const [sonarProjectsError, setSonarProjectsError] = useState("");
   const arbovirusExplanationRef = useRef(null);
@@ -907,7 +905,7 @@ const CitySearchDetails = () => {
     const municipioCodIbge = cityData?.municipio_cod_ibge;
     const prediction = getArbovirusOutbreakPrediction(cityData);
 
-    setSonarProjects([]);
+    setSonarRecommendations(EMPTY_SONAR_RECOMMENDATIONS);
     setSonarProjectsError("");
 
     if (!municipioCodIbge || isPredictedArbovirusOutbreak(prediction)) {
@@ -925,7 +923,12 @@ const CitySearchDetails = () => {
         if (!response.ok) throw new Error("Não foi possível consultar o Sonar Municipal.");
         return response.json();
       })
-      .then((data) => setSonarProjects(Array.isArray(data?.projetos) ? data.projetos : []))
+      .then((data) =>
+        setSonarRecommendations({
+          perfil: Array.isArray(data?.perfil) ? data.perfil : [],
+          temas: Array.isArray(data?.temas) ? data.temas : [],
+        })
+      )
       .catch((requestError) => {
         if (requestError.name !== "AbortError") {
           console.error("Erro ao consultar projetos de lei:", requestError);
@@ -2675,7 +2678,7 @@ const CitySearchDetails = () => {
                                 >
                                   {hasPredictedArbovirusOutbreak
                                     ? "Diretrizes para prevenção e controle"
-                                    : "Projetos de Lei aplicáveis"}
+                                    : "Projetos de lei para prevenir arboviroses"}
                                 </h4>
                               </div>
 
@@ -2695,7 +2698,7 @@ const CitySearchDetails = () => {
                                   </a>
                                 </div>
                               ) : (
-                                <div className="divide-y divide-[#e7edf7]">
+                                <div>
                                   {sonarProjectsLoading && (
                                     <p className="px-5 py-6 text-sm text-[#5b7596]" role="status">
                                       Consultando projetos no Sonar Municipal…
@@ -2706,40 +2709,87 @@ const CitySearchDetails = () => {
                                       {sonarProjectsError}
                                     </p>
                                   )}
-                                  {!sonarProjectsLoading && !sonarProjectsError && sonarProjects.length === 0 && (
+                                  {!sonarProjectsLoading && !sonarProjectsError && sonarRecommendations.temas.length === 0 && (
                                     <p className="px-5 py-6 text-sm text-[#5b7596]">
                                       Nenhum projeto aplicável foi encontrado pelo Sonar Municipal.
                                     </p>
                                   )}
-                                  {!sonarProjectsLoading && sonarProjects.map((project, index) => (
-                                    <article key={project.id ?? `${project.acao}-${index}`} className="px-5 py-4">
-                                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                        <div className="min-w-0">
-                                          <h5 className="font-bold leading-6 text-[#17243a]">
-                                            {project.acao || project.ementa}
-                                          </h5>
-                                          {project.acao && project.ementa && (
-                                            <p className="mt-1 text-sm leading-6 text-[#51647f]">{project.ementa}</p>
-                                          )}
-                                          <p className="mt-2 text-xs font-semibold text-[#5b7596]">
-                                            {[project.tipo, project.municipio, project.uf]
-                                              .filter(Boolean)
-                                              .join(" · ")}
+                                  {!sonarProjectsLoading && !sonarProjectsError && sonarRecommendations.temas.length > 0 && (
+                                    <>
+                                      {sonarRecommendations.perfil.length > 0 && (
+                                        <div className="border-b border-[#e7edf7] px-5 py-4">
+                                          <p className="text-sm text-[#51647f]">
+                                            Busca ajustada ao perfil de {displayCityName}:
                                           </p>
+                                          <ul className="mt-2 flex flex-wrap gap-2">
+                                            {sonarRecommendations.perfil.map((item) => (
+                                              <li
+                                                key={item.id}
+                                                title={item.ano ? `Dado de ${item.ano}` : undefined}
+                                                className="rounded-full bg-[#eef4fc] px-3 py-1 text-xs font-semibold text-[#2b4a6f]"
+                                              >
+                                                {item.rotulo}: {formatSonarProfileValue(item)}
+                                              </li>
+                                            ))}
+                                          </ul>
                                         </div>
-                                        {project.link && (
-                                          <a
-                                            href={project.link}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="shrink-0 text-sm font-bold text-[#2475cf] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff]"
+                                      )}
+                                      <div className="divide-y divide-[#e7edf7]">
+                                        {sonarRecommendations.temas.map((tema) => (
+                                          <section
+                                            key={tema.id}
+                                            aria-labelledby={`sonar-tema-${tema.id}`}
+                                            className="px-5 py-4"
                                           >
-                                            Ver projeto
-                                          </a>
-                                        )}
+                                            <h5 id={`sonar-tema-${tema.id}`} className="font-bold text-[#17243a]">
+                                              {tema.titulo}
+                                            </h5>
+                                            <p className="mt-1 text-sm leading-6 text-[#5b7596]">{tema.motivo}</p>
+                                            <ul className="mt-3 space-y-3">
+                                              {tema.projetos.map((project, index) => (
+                                                <li
+                                                  key={project.id ?? `${project.acao}-${index}`}
+                                                  className="rounded-lg border border-[#e7edf7] bg-[#fbfcff] px-4 py-3"
+                                                >
+                                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div className="min-w-0">
+                                                      <p className="font-semibold leading-6 text-[#17243a]">
+                                                        {project.acao || project.ementa}
+                                                      </p>
+                                                      {project.acao && project.ementa && (
+                                                        <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#51647f]">
+                                                          {project.ementa}
+                                                        </p>
+                                                      )}
+                                                      <p className="mt-2 text-xs font-semibold text-[#5b7596]">
+                                                        {[
+                                                          project.tipo,
+                                                          [project.municipio, project.uf].filter(Boolean).join("/"),
+                                                          project.ano,
+                                                        ]
+                                                          .filter(Boolean)
+                                                          .join(" · ")}
+                                                      </p>
+                                                    </div>
+                                                    {project.link && (
+                                                      <a
+                                                        href={project.link}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="shrink-0 text-sm font-bold text-[#2475cf] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7fb6ff]"
+                                                      >
+                                                        Ver projeto
+                                                      </a>
+                                                    )}
+                                                  </div>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </section>
+                                        ))}
                                       </div>
-                                    </article>
-                                  ))}
+                                    </>
+                                  )}
                                 </div>
                               )}
 

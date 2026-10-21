@@ -121,3 +121,9 @@ Os endpoints sensíveis possuem limite de tentativas por IP e os eventos relevan
 `POST /api/assistente/consultar` executa consultas determinísticas sobre os dados municipais. O endpoint aceita somente as ações `comparar_municipios` e `desafios_oportunidades_transformacao_digital`. A comparação de municípios semelhantes preserva o recorte territorial e socioeconômico da plataforma e apresenta pontuações separadas para as dimensões Econômica, Sociocultural e Meio Ambiente. Não há modelo de linguagem, embeddings ou serviço externo: o backend valida o município, consulta o PostgreSQL e monta a resposta com templates localizados.
 
 O limite padrão é de 30 consultas por IP a cada 15 minutos e pode ser ajustado com `ASSISTANT_RATE_LIMIT_MAX` e `ASSISTANT_RATE_LIMIT_WINDOW_MS`.
+
+## Integração com o Sonar Municipal
+
+`GET /api/sonar-municipal/:municipioCodIbge/projetos-arboviroses` alimenta o card "O que o município pode fazer agora" da aba Arboviroses. O backend lê do banco o perfil do município (população, cobertura de água, esgoto e coleta de lixo e risco de inundação), escolhe até quatro temas de prevenção compatíveis com esse perfil e consulta `POST /api/search` do Sonar Municipal uma vez por tema. Os PLs que não citam o tema ou que repetem o texto de outro já selecionado são descartados.
+
+O Sonar roda no mesmo servidor e não fica exposto à internet, portanto a chamada sempre parte do backend e nunca do navegador. Configure a URL base em `SONAR_API_URL` (padrão `http://127.0.0.1:3000`, sem `/api`). Como as buscas são frases fixas compartilhadas por todos os municípios, os resultados ficam em cache por seis horas no processo do backend.
