@@ -19,7 +19,7 @@ from indicadores.calculator import INDICADOR_VALOR_TEXTUAL_IDS
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_FILE = BASE_DIR / "dados" / "formularios.xlsx"
+DEFAULT_FILE = BASE_DIR /"novos_formularios.xlsx"
 DEFAULT_SHEET = "Planilha1"
 EXPECTED_COLUMNS = {
     "municipio_cod_ibge",

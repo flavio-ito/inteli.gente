@@ -12,6 +12,7 @@ import { Info } from "lucide-react";
 import MunicipalityName from "@/components/common/MunicipalityName";
 import { MOCK_CITY } from "@/data/mockData";
 import IndicatorsTable from "@/components/city/IndicatorsTable";
+import IndicatorMaturityRanges, { hasMaturityRule } from "@/components/city/IndicatorMaturityRanges";
 import MunicipalityMap from "@/components/city/MunicipalityMap";
 import MunicipalAssistant from "@/components/city/MunicipalAssistant";
 import { useI18n } from "@/lib/i18n";
@@ -86,6 +87,13 @@ const formatMobileBroadbandCoverage = (value) => {
 
 const getIndicatorName = (indicator, fallback) => indicator?.indicador_nome || fallback;
 
+const getIndicatorDescription = (indicator, indicatorId) => {
+  const description = indicator?.indicador_descricao || null;
+  return String(indicatorId) === "4036"
+    ? description?.replace(/100(?: mil)? habitantes/g, "100 mil habitantes") ?? null
+    : description;
+};
+
 const getIndicatorSources = (indicator) =>
   Array.isArray(indicator?.variavel_fontes) ? indicator.variavel_fontes : [];
 
@@ -93,6 +101,7 @@ const getUniqueSources = (sources) =>
   Array.from(new Set((Array.isArray(sources) ? sources : []).filter(Boolean)));
 
 const CHARACTERIZATION_TITLE_FALLBACKS = {
+  4050: "Número de campus de Institutos e Universidades Federais",
   4051: "Número de empresas em parques tecnológicos",
   4052: "Número de Incubadoras credenciadas - Lei de TIC",
   4053: "Número de Instituições de Ensino e Pesquisa em PD&I - Lei de TIC",
@@ -114,7 +123,7 @@ const CHARACTERIZATION_TITLE_FALLBACKS = {
 const enrichIndicatorItem = (item, indicator) => ({
   ...item,
   label: getIndicatorName(indicator, item.label || `Indicador ${item.id || ""}`.trim()),
-  description: indicator?.indicador_descricao || null,
+  description: getIndicatorDescription(indicator, item.id),
   variableSources: getIndicatorSources(indicator),
   topicLevel: indicator?.nivel_topico ?? null,
 });
@@ -269,11 +278,11 @@ const TABLE_INDICATOR_FORMAT_BY_ID = {
   3021: "percent",
   3022: "percent",
   3024: "percent",
-  3028: "percent",
+  3028: "cubicMetersPerInhabitant",
+  3003: "percent",
   3037: "binary",
   3040: "mobileBroadbandCoverage",
   3041: "binary",
-  3086: "percent",
   3110: "percent",
   3117: "percent",
   3122: "percent",
@@ -287,10 +296,13 @@ const TABLE_INDICATOR_FORMAT_BY_ID = {
   4021: "percent",
   4034: "percent",
   4035: "percent",
+  4036: "integer",
   4037: "percent",
   4047: "percent",
+  4048: "integer",
   4065: "5gPossession",
   4070: "percent",
+  4071: "percent",
 };
 
 const formatConfiguredIndicatorValue = (indicator, format = "number", indicatorId = null) => {
@@ -299,6 +311,16 @@ const formatConfiguredIndicatorValue = (indicator, format = "number", indicatorI
   }
 
   if (format === "percent") return formatPercent(Number(indicator?.indicador));
+  if (format === "cubicMetersPerInhabitant") {
+    const value = Number(indicator?.indicador);
+    return Number.isFinite(value) ? `${formatNumber(value)} m³/hab` : "N/D";
+  }
+  if (format === "integer") {
+    const value = Number(indicator?.indicador);
+    return Number.isFinite(value)
+      ? value.toLocaleString("pt-BR", { maximumFractionDigits: 0 })
+      : "N/D";
+  }
   if (format === "binary") return formatBinaryPossessionValue(indicator?.indicador);
   if (format === "mobileBroadbandCoverage") {
     return formatMobileBroadbandCoverage(indicator?.indicador);
@@ -389,6 +411,12 @@ const getLevelColor = (level) => {
   return LEVEL_COLORS[safeLevel];
 };
 
+const getDisplayedMaturityLevel = (level) => {
+  const parsedLevel = Number(level);
+  if (!Number.isFinite(parsedLevel) || parsedLevel < 1 || parsedLevel > 7) return "N/D";
+  return ["F", "E", "1", "2", "3", "4", "5"][Math.round(parsedLevel) - 1];
+};
+
 const getMaturityTierLabel = (level) => {
   const parsedLevel = Number(level);
 
@@ -422,17 +450,20 @@ const MaturityTierBar = ({ level, compact = false, showLabels = true }) => {
   const hasLevel = Number.isFinite(parsedLevel) && parsedLevel >= 1 && parsedLevel <= 7;
   const activeLevel = hasLevel ? Math.round(parsedLevel) : 0;
   const activeColor = hasLevel ? getLevelColor(activeLevel) : "#D8DDE3";
+  const levelLabels = ["F", "E", "1", "2", "3", "4", "5"];
 
   const renderSegments = (levels) =>
-    levels.map((segmentLevel) => (
+    levels.map(({ segmentLevel, label }) => (
       <span
-        key={segmentLevel}
-        aria-hidden="true"
+        key={label}
+        aria-label={`Nível ${label}`}
         className={`${compact ? "h-2" : "h-2.5"} flex-1 rounded-sm`}
         style={{
           backgroundColor: segmentLevel <= activeLevel ? activeColor : "#D8DDE3",
         }}
-      />
+      >
+        <span className="sr-only">{label}</span>
+      </span>
     ));
 
   return (
@@ -441,16 +472,25 @@ const MaturityTierBar = ({ level, compact = false, showLabels = true }) => {
         role="img"
         aria-label={
           hasLevel
-            ? `Nível de maturidade ${activeLevel} de 7. Preparação: níveis 1 e 2. Gestão e Governança: níveis 3 a 7.`
-            : "Nível de maturidade não disponível. Preparação: níveis 1 e 2. Gestão e Governança: níveis 3 a 7."
+            ? `Nível de maturidade ${levelLabels[activeLevel - 1]} de 5. Preparação: F e E. Gestão e Governança: níveis 1 a 5.`
+            : "Nível de maturidade não disponível. Preparação: F e E. Gestão e Governança: níveis 1 a 5."
         }
         className="flex gap-3"
       >
         <div className="flex flex-[2] gap-1.5">
-          {renderSegments([1, 2])}
+          {renderSegments([
+            { segmentLevel: 1, label: levelLabels[0] },
+            { segmentLevel: 2, label: levelLabels[1] },
+          ])}
         </div>
         <div className={`relative flex flex-[5] gap-1.5 before:absolute before:-left-[7px] before:top-1/2 before:w-px before:-translate-y-1/2 before:bg-[#aeb9c7] ${compact ? "before:h-4" : "before:h-5"}`}>
-          {renderSegments([3, 4, 5, 6, 7])}
+          {renderSegments([
+            { segmentLevel: 3, label: levelLabels[2] },
+            { segmentLevel: 4, label: levelLabels[3] },
+            { segmentLevel: 5, label: levelLabels[4] },
+            { segmentLevel: 6, label: levelLabels[5] },
+            { segmentLevel: 7, label: levelLabels[6] },
+          ])}
         </div>
       </div>
 
@@ -1624,13 +1664,13 @@ const CitySearchDetails = () => {
       value,
       level,
       valueIsText: Boolean(textValue),
-      description: indicator?.indicador_descricao || null,
+      description: getIndicatorDescription(indicator, id),
       variableSources: getIndicatorSources(indicator),
     };
   };
   const renderCharacterizationTitle = (item, className = "text-base leading-snug text-[#111827]") => {
     const sources = getUniqueSources(item.variableSources);
-    const hasTooltipContent = Boolean(item.description) || sources.length > 0;
+    const hasTooltipContent = Boolean(item.description) || sources.length > 0 || hasMaturityRule(item.id);
 
     return (
       <div className="flex min-w-0 items-start gap-2">
@@ -1639,7 +1679,7 @@ const CitySearchDetails = () => {
         </p>
 
         {hasTooltipContent && (
-          <span className="group relative mt-0.5 inline-flex shrink-0">
+          <span className="group relative mt-0.5 inline-flex shrink-0 after:absolute after:inset-x-0 after:top-full after:h-2">
             <button
               type="button"
               aria-label={`Informações sobre ${item.title || "indicador"}`}
@@ -1647,14 +1687,20 @@ const CitySearchDetails = () => {
             >
               <Info className="h-4 w-4" strokeWidth={2.3} />
             </button>
-            <span className="pointer-events-none absolute left-0 top-full z-30 mt-2 w-80 rounded-md border border-[#d7e4f5] bg-white px-3 py-2 text-xs leading-relaxed text-[#425a78] opacity-0 shadow-[0_8px_24px_rgba(23,52,95,0.16)] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-              {item.description && <span className="block">{t(item.description)}</span>}
+            <span className="pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto max-h-[min(32rem,70vh)] overflow-y-auto absolute left-0 top-full z-30 mt-2 w-80 rounded-md border border-[#d7e4f5] bg-white px-3 py-2 text-xs leading-relaxed text-[#425a78] opacity-0 shadow-[0_8px_24px_rgba(23,52,95,0.16)] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+              {item.description && (
+                <span className="block">
+                  <span className="mb-1 block font-semibold text-[#1f2d3d]">{t("Descrição")}</span>
+                  {t(item.description)}
+                </span>
+              )}
               {sources.length > 0 && (
                 <span className={item.description ? "mt-2 block" : "block"}>
                   <span className="font-semibold text-[#1f2d3d]">{t("Fonte:")}</span>{" "}
                   {sources.join("; ")}
                 </span>
               )}
+              <IndicatorMaturityRanges indicatorId={item.id} level={item.level} />
             </span>
           </span>
         )}
@@ -1732,6 +1778,8 @@ const CitySearchDetails = () => {
       valueFormatter: (value) =>
         INFLUENCE_NETWORK_LABELS[Math.round(value)] || "Desconhecido",
     }),
+    getCharacterizationCardById("3135"),
+    getCharacterizationCardById("4013"),
   ];
   const territoryEnvironmentCards = [
     getCharacterizationCardById("3058"),
@@ -1863,7 +1911,7 @@ const CitySearchDetails = () => {
                         </svg>
                         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
                           <span className="text-4xl font-bold text-[#1f2d3d]">
-                            {hasAvgLevel ? avgLevel : "N/D"}
+                            {hasAvgLevel ? getDisplayedMaturityLevel(avgLevel) : "N/D"}
                           </span>
                         </div>
                       </div>
@@ -1956,7 +2004,7 @@ const CitySearchDetails = () => {
                           </svg>
                           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
                             <span className="text-4xl font-bold text-[#1f2d3d]">
-                              {hasCurrentDimLevel ? currentDimLevel : "N/D"}
+                              {hasCurrentDimLevel ? getDisplayedMaturityLevel(currentDimLevel) : "N/D"}
                             </span>
                           </div>
                         </div>
@@ -2163,7 +2211,9 @@ const CitySearchDetails = () => {
                           </svg>
                           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
                             <span className="text-2xl font-bold leading-none text-[#1f2d3d]">
-                              {Number.isFinite(dim.computedLevel) ? dim.computedLevel : "N/D"}
+                              {Number.isFinite(dim.computedLevel)
+                                ? getDisplayedMaturityLevel(dim.computedLevel)
+                                : "N/D"}
                             </span>
                           </div>
                   </div>
@@ -2269,7 +2319,7 @@ const CitySearchDetails = () => {
                             <div className="mb-6">
                               {renderCharacterizationCards(
                                 sociodemographicCards,
-                                "sm:grid-cols-2 xl:grid-cols-4"
+                                "sm:grid-cols-2 xl:grid-cols-3"
                               )}
                             </div>
                           )}

@@ -1,5 +1,9 @@
 {
   "en": {
+    "Faixas de maturidade": "Maturity ranges",
+    "Este indicador ainda não possui faixas de maturidade definidas.": "This indicator does not yet have defined maturity ranges.",
+    "Faixas aplicadas ao valor numérico calculado do indicador.": "Ranges apply to the calculated numeric value of the indicator.",
+    "O nível nesta faixa depende dos níveis dos indicadores de contexto.": "The level in this range depends on the levels of the context indicators.",
     "Saúde e infraestrutura": "Health and infrastructure",
     "Telemedicina, água e energia": "Telemedicine, water and energy",
     "O município disponibiliza serviços de telemedicina ou telessaúde?": "Does the municipality provide telemedicine or telehealth services?",
@@ -155,6 +159,10 @@
     "Os resultados do monitoramento e da avaliação são totalmente disponibilizados ao público em portal ou outro meio digital pela prefeitura, em tempo real, de modo aberto e que permita o acompanhamento pelo cidadão": "Monitoring and evaluation results are fully available to the public in real time through an open city hall portal or other digital channel that allows citizen oversight"
   },
   "fr": {
+    "Faixas de maturidade": "Plages de maturité",
+    "Este indicador ainda não possui faixas de maturidade definidas.": "Cet indicateur ne possède pas encore de plages de maturité définies.",
+    "Faixas aplicadas ao valor numérico calculado do indicador.": "Les plages s’appliquent à la valeur numérique calculée de l’indicateur.",
+    "O nível nesta faixa depende dos níveis dos indicadores de contexto.": "Le niveau dans cette plage dépend des niveaux des indicateurs de contexte.",
     "Saúde e infraestrutura": "Santé et infrastructures",
     "Telemedicina, água e energia": "Télémédecine, eau et énergie",
     "O município disponibiliza serviços de telemedicina ou telessaúde?": "La municipalité propose-t-elle des services de télémédecine ou de télésanté ?",
@@ -252,6 +260,10 @@
     "Os resultados do monitoramento e da avaliação são totalmente disponibilizados ao público em portal ou outro meio digital pela prefeitura, em tempo real, de modo aberto e que permita o acompanhamento pelo cidadão": "Les résultats du suivi et de l’évaluation sont intégralement accessibles au public en temps réel, dans un format ouvert permettant le suivi par les citoyens, sur un portail municipal ou un autre support numérique"
   },
   "es": {
+    "Faixas de maturidade": "Rangos de madurez",
+    "Este indicador ainda não possui faixas de maturidade definidas.": "Este indicador aún no tiene rangos de madurez definidos.",
+    "Faixas aplicadas ao valor numérico calculado do indicador.": "Los rangos se aplican al valor numérico calculado del indicador.",
+    "O nível nesta faixa depende dos níveis dos indicadores de contexto.": "El nivel en este rango depende de los niveles de los indicadores de contexto.",
     "Saúde e infraestrutura": "Salud e infraestructura",
     "Telemedicina, água e energia": "Telemedicina, agua y energía",
     "O município disponibiliza serviços de telemedicina ou telessaúde?": "¿El municipio ofrece servicios de telemedicina o telesalud?",

@@ -51,11 +51,11 @@ const topics = [
       },
       {
         subtitle: "Apoio aos municípios",
-        text: "O projeto inteli.gente foi desenvolvido para apoiar municípios na jornada de transformação digital e sustentabilidade, com foco em decisões baseadas em evidências.",
+        text: "A plataforma IARAinteli.gente foi desenvolvida para apoiar municípios e gestores públicos em transformação digital e sustentabilidade, com dados e conhecimento baseados em evidências e análises multicritérios para tomada de decisões.",
       },
       {
         subtitle: "Nossa proposta",
-        text: "Nossa proposta integra metodologia, dados públicos e visualizações para orientar diagnósticos, priorizar ações e fortalecer políticas voltadas a cidades inteligentes sustentáveis.",
+        text: "Desenvolver uma plataforma digital, aberta e interativa, que funcione como um repositório integrado de dados e evidências, voltado para apoiar a governança e a gestão pública municipal.",
       },
     ],
   },
@@ -65,10 +65,22 @@ const topics = [
     icon: Grid2X2,
     title: "Dimensões",
     paragraphs: [
-      "Meio Ambiente: Avalia a proteção do acesso aos recursos do ambiente natural e construído, no presente e no futuro. Tem foco no fomento à produção e ao consumo consciente e equilibrado entre recursos naturais, TICs e sociedade, com respeito, preservação e recuperação do ambiente natural.",
-      "Econômica: Avalia o potencial de gerar renda e emprego para a subsistência das pessoas e o desenvolvimento inclusivo da economia urbana local. Tem foco no acesso à infraestrutura urbana e de TIC, a geração de oportunidades econômicas pelo uso das TICs nas cidades e a promoção da economia criativa e compartilhada.",
-      "Sociocultural: Avalia a proteção do bem-estar das pessoas de maneira equitativa, com redução das desigualdades socioespaciais, acesso à informação, inclusão e letramento digital, bens e serviços urbanos essenciais. Tem foco no respeitar à identidade e à diversidade sociocultural local.",
-      "Capacidades Institucionais: Avalia as capacidades institucionais para a transformação da cidade levando em conta ações-chave da administração pública municipal nos âmbitos de estratégia, infraestrutura de Hardware eSoftware, dados abertos, serviços e aplicações e monitoramento."
+      {
+        subtitle: "Meio Ambiente",
+        text: "Avalia a proteção do acesso aos recursos do ambiente natural e construído, no presente e no futuro. Tem foco no fomento à produção e ao consumo consciente e equilibrado entre recursos naturais, TICs e sociedade, com respeito, preservação e recuperação do ambiente natural.",
+      },
+      {
+        subtitle: "Econômica",
+        text: "Avalia o potencial de gerar renda e emprego para a subsistência das pessoas e o desenvolvimento inclusivo da economia urbana local. Tem foco no acesso à infraestrutura urbana e de TIC, a geração de oportunidades econômicas pelo uso das TICs nas cidades e a promoção da economia criativa e compartilhada.",
+      },
+      {
+        subtitle: "Sociocultural",
+        text: "Avalia a proteção do bem-estar das pessoas de maneira equitativa, com redução das desigualdades socioespaciais, acesso à informação, inclusão e letramento digital, bens e serviços urbanos essenciais. Tem foco no respeitar à identidade e à diversidade sociocultural local.",
+      },
+      {
+        subtitle: "Capacidades Institucionais",
+        text: "Avalia as capacidades institucionais para a transformação da cidade levando em conta ações-chave da administração pública municipal nos âmbitos de estratégia, infraestrutura de Hardware e Software, dados abertos, serviços e aplicações e monitoramento.",
+      },
     ],
   },
   {
@@ -77,18 +89,18 @@ const topics = [
     icon: BarChart3,
     title: "Níveis de Maturidade",
     paragraphs: [
-      "A plataforma inteli.gente apresenta um diagnóstico do nível de maturidade para subsidiar a construção de políticas públicas em todas as cidades do país. A plataforma possui sete níveis de maturidade, sendo o número sete o mais elevado. Os níveis Fundação e Engajamento são resultados de uma ampliação para o Brasil, a partir do SSC-MM da União Internacional de Telecomunicações (ITU) que recomenda cinco níveis de maturidade.",
+      "A plataforma IARAinteli.gente apresenta diagnósticos e recomendações para os níveis de maturidade, subsidiando a construção de políticas públicas em todos os municípios brasileiros. Possui duas camadas para diagnósticos. A camada 1 denominada Preparação com os níveis Fundação e Engajamento, é resultado da ampliação e revisão de pesquisadores brasileiros a partir do SSC-MM ITU-T -UN (Modelo de Maturidade para Cidades e Comunidades Inteligentes da União Internacional de Telecomunicações –  da Organização das Nações Unidas), que recomendava apenas a segunda camada Gestão e Governança com 5 níveis de maturidade (planejamento, alinhamento, desenvolvimento, integração e otimização.",
       "Cada nível tem seus próprios objetivos, indicadores-chave de performance da cidade e práticas esperadas, apresentando um caminho evolutivo. O nível de maturidade não é voltado para o ranqueamento da cidade, e sim para fornecer um diagnóstico sobre o desenvolvimento urbano sustentável e a transformação digital de forma integrada.",
-      "Os níveis de maturidade oferecem um guia para as cidades que buscam seu próprio desenvolvimento em curto, médio e longo prazos, entendendo que elas são complexas, diversas e estão em constante transformação. O conjunto de objetivos, indicadores e práticas delineiam caminhos de políticas públicas, federais, estaduais e municipais em direção às cidades tornarem-se inteligentes e sustentáveis.",
+      "Os níveis de maturidade oferecem diagnósticos e recomendações para as cidades direcionarem seu próprio desenvolvimento em curto, médio e longo prazos, entendendo que elas são complexas, diversas e estão em constante transformação. O conjunto de objetivos, indicadores e práticas delineiam caminhos de políticas públicas, federais, estaduais e municipais em direção às cidades tornarem-se inteligentes e sustentáveis.",
     ],
     bullets: [
-      "Fundação: Neste nível a cidade reconhece alguns de seus problemas-chave e entende o tipo de desafio pertinente a tornar-se uma cidade inteligente sustentável. Ainda não há plano formal ou estratégia consolidada para a transformação digital, inexistindo integração entre os setores e secretarias, e forte assimetria territorial de infraestrutura para a oferta de serviços públicos. Os processos não estão padronizados e apresenta baixo grau de digitalização dos serviços oferecidos. As cidades neste nível apresentam os menores resultados para os indicadores, o que expressa necessidade de melhoria nos aspectos econômicos, ambientais, socioculturais e de capacidade institucional.",
-      "Engajamento: Em uma cidade neste nível, as ações de transformação começam a se articular, com definições das metas setoriais para incorporação de tecnologia, mesmo não tendo um plano formal ou estratégia consolidada para a gestão da cidade. Há identificação das áreas prioritárias de investimentos em infraestrutura básica para a diminuição de assimetrias territoriais, para a padronização dos processos e para a digitalização de serviços públicos municipais. Nos indicadores da cidade, persistem defasagens infraestruturais afetando ainda a oferta de serviços e a qualidade de vida das pessoas.",
-      "Primeiro Nível: A cidade apresenta planejamento e estratégia de transformação digital, incluindo planos e políticas de dados, e acompanhamento por indicadores e metas. Existe uma liderança no processo de articulação com diversos atores envolvidos. Os planos de ampliação da infraestrutura urbana e de TIC reconhecem a necessidade de oferecimento de serviços on-line. A produção e uso de dados indicam a necessidade de interoperabilidade entre os setores e secretarias. A identificação de áreas prioritárias de políticas públicas de gestão por processos de acompanhamento e monitoramento já podem estar disponíveis on-line no portal da cidade. Os resultados dos indicadores apontam que há condições infraestruturais para se avançar em direção à cidade inteligente sustentável.",
-      "Segundo Nível: Há ações implementadas para melhoria e uso de TICs em serviços e soluções. Existe participação de atores diversos nas decisões sobre a transformação digital da cidade. A captura e organização dos dados estão implementadas permitindo que os serviços atendam à maioria da população, ainda que não integrados. A cidade está preparada para ações de inclusão digital, monitoramento periódico de políticas e pesquisas de satisfação. A infraestrutura urbana e de TICs permite disponibilizar serviços urbanos e aplicações com uso de TICs para melhorar a qualidade de vida do cidadão.",
-      "Terceiro Nível: Neste nível, a cidade busca o desenvolvimento por meio da utilização de tecnologia, entre outras ações. As tomadas de decisão em relação à cidade inteligente sustentável têm a participação dos munícipes em diversos arranjos e atores institucionais. Os serviços públicos oferecidos atendem à maioria da população de modo integrado e por multicanais digitais. As pesquisas de satisfação e sua disponibilização apontam para infraestruturas urbanas e de TIC implantadas, permitindo a ampliação da oferta de serviços públicos com uso de TIC e com interoperabilidade. Os dados são adequadamente armazenados, processados e geridos em sistemas e plataformas digitais públicas.",
-      "Quarto Nível: As estratégias neste nível de maturidade estão consolidadas, a cidade visa integrar tecnologicamente sistemas e o território com demais municípios. Existe um portal de dados abertos com uso de ferramentas de TICs avançadas e preditivas, para o subsídio de serviços e soluções inteligentes, em tempo real. Os sistemas de gestão e governança pública estão interoperáveis, e com forte participação social. As pesquisas de satisfação com as partes interessadas contribuem para o aperfeiçoamento das políticas públicas, em um processo sistemático de avaliação contínua.",
-      "Quinto Nível: A cidade neste nível está integrada, sustentável, inclusiva e diversa, oferecendo acesso pleno à infraestrutura urbana e de TICs. As avaliações de satisfação e qualidade são sistemáticas, periódicas, quantitativas e qualitativas, com indicadores e dados populacionais, que subsidiam políticas públicas e direcionam à melhoria contínua do município. Há institucionalidade, governança colaborativa e participação social. A tecnologia implantada tem função de melhorar continuamente serviços, aplicações e infraestruturas. A automatização e a internalização das TICs avançadas, com grandes volumes de dados coletados e analisados, permitem previsões para a eficiência na entrega dos serviços em tempo real."
+      "Nível Fundação: Neste nível a cidade reconhece alguns de seus problemas-chave e entende o tipo de desafio pertinente a tornar-se uma cidade inteligente sustentável. Ainda não há plano formal ou estratégia consolidada para a transformação digital, inexistindo integração entre os setores e secretarias, e forte assimetria territorial de infraestrutura para a oferta de serviços públicos. Os processos não estão padronizados e apresenta baixo grau de digitalização dos serviços oferecidos. As cidades neste nível apresentam os menores resultados para os indicadores, o que expressa necessidade de melhoria nos aspectos econômicos, ambientais, socioculturais e de capacidade institucional.",
+      "Nível Engajamento: Em uma cidade neste nível, as ações de transformação começam a se articular, com definições das metas setoriais para incorporação de tecnologia, mesmo não tendo um plano formal ou estratégia consolidada para a gestão da cidade. Há identificação das áreas prioritárias de investimentos em infraestrutura básica para a diminuição de assimetrias territoriais, para a padronização dos processos e para a digitalização de serviços públicos municipais. Nos indicadores da cidade, persistem defasagens infraestruturais afetando ainda a oferta de serviços e a qualidade de vida das pessoas.",
+      "Nível 1 - Planejamento: A cidade apresenta planejamento e estratégia de transformação digital, incluindo planos e políticas de dados, e acompanhamento por indicadores e metas. Existe uma liderança no processo de articulação com diversos atores envolvidos. Os planos de ampliação da infraestrutura urbana e de TIC reconhecem a necessidade de oferecimento de serviços on-line. A produção e uso de dados indicam a necessidade de interoperabilidade entre os setores e secretarias. A identificação de áreas prioritárias de políticas públicas de gestão por processos de acompanhamento e monitoramento já podem estar disponíveis on-line no portal da cidade. Os resultados dos indicadores apontam que há condições infraestruturais para se avançar em direção à cidade inteligente sustentável.",
+      "Nível 2 - Alinhamento: Há ações implementadas para melhoria e uso de TICs em serviços e soluções. Existe participação de atores diversos nas decisões sobre a transformação digital da cidade. A captura e organização dos dados estão implementadas permitindo que os serviços atendam à maioria da população, ainda que não integrados. A cidade está preparada para ações de inclusão digital, monitoramento periódico de políticas e pesquisas de satisfação. A infraestrutura urbana e de TICs permite disponibilizar serviços urbanos e aplicações com uso de TICs para melhorar a qualidade de vida do cidadão.",
+      "Nível 3 - Desenvolvimento: Neste nível, a cidade busca o desenvolvimento por meio da utilização de tecnologia, entre outras ações. As tomadas de decisão em relação à cidade inteligente sustentável têm a participação dos munícipes em diversos arranjos e atores institucionais. Os serviços públicos oferecidos atendem à maioria da população de modo integrado e por multicanais digitais. As pesquisas de satisfação e sua disponibilização apontam para infraestruturas urbanas e de TIC implantadas, permitindo a ampliação da oferta de serviços públicos com uso de TIC e com interoperabilidade. Os dados são adequadamente armazenados, processados e geridos em sistemas e plataformas digitais públicas.",
+      "Nível 4 - Integração: As estratégias neste nível de maturidade estão consolidadas, a cidade visa integrar tecnologicamente sistemas e o território com demais municípios. Existe um portal de dados abertos com uso de ferramentas de TICs avançadas e preditivas, para o subsídio de serviços e soluções inteligentes, em tempo real. Os sistemas de gestão e governança pública estão interoperáveis, e com forte participação social. As pesquisas de satisfação com as partes interessadas contribuem para o aperfeiçoamento das políticas públicas, em um processo sistemático de avaliação contínua.",
+      "Nível 5 - Otimização: A cidade neste nível está integrada, sustentável, inclusiva e diversa, oferecendo acesso pleno à infraestrutura urbana e de TICs. As avaliações de satisfação e qualidade são sistemáticas, periódicas, quantitativas e qualitativas, com indicadores e dados populacionais, que subsidiam políticas públicas e direcionam à melhoria contínua do município. Há institucionalidade, governança colaborativa e participação social. A tecnologia implantada tem função de melhorar continuamente serviços, aplicações e infraestruturas. A automatização e a internalização das TICs avançadas, com grandes volumes de dados coletados e analisados, permitem previsões para a eficiência na entrega dos serviços em tempo real."
     ],
   },
   {
@@ -97,8 +109,8 @@ const topics = [
     icon: Building2,
     title: "Capacidades Institucionais",
     paragraphs: [
-      "Os tópicos desta dimensão avaliam a maturidade da gestão municipal em relação a estratégia, infraestrutura de Hardware e Software, dados abertos, serviços e aplicações e monitoramento, de maneira que a cidade estruture melhores condições para alcançar e se sustentar como uma cidade inteligente.",
-      "Os Indicadores de Capacidade Institucional foram normalizados e parametrizados por serem provenientes de diferentes fontes e escalas sendo necessário converter os dados para um mesmo padrão de medição, ou seja, em faixas de valores (intervalos), com critérios de metrificação dos indicadores para auferir o nível de maturidade.",
+      "Os tópicos e indicadores desta dimensão avaliam a maturidade da gestão e governança municipal em relação a estratégia, infraestrutura de Hardware e Software, dados abertos, serviços e aplicações e monitoramento, de maneira que a cidade estruture melhores condições para alcançar e se sustentar como uma cidade inteligente.",
+      "Os Indicadores de Capacidade Institucional foram normalizados e parametrizados por serem provenientes de diferentes fontes e escalas sendo necessário converter os dados para um mesmo padrão de medição, ou seja, em faixas de valores (intervalos), com critérios de metrificação dos indicadores para auferir os níveis de maturidade tanto para a camada preparação (Fundação e Engajamento) como para gestão e governança municipal (1 a 5).",
     ],
   },
   {
@@ -107,7 +119,7 @@ const topics = [
     icon: Leaf,
     title: "Desenvolvimento Sustentável e TICs",
     paragraphs: [
-      "Os Indicadores de Desenvolvimento Sustentável e TICs foram normalizados e parametrizados por serem provenientes de diferentes fontes e escalas sendo necessário converter os dados para um mesmo padrão de medição, ou seja, em faixas de valores (intervalos), com critérios de metrificação dos indicadores para auferir o nível de maturidade.",
+      "Os Indicadores de Desenvolvimento Sustentável e TICs foram normalizados e parametrizados por serem provenientes de diferentes fontes e escalas sendo necessário converter os dados para um mesmo padrão de medição, ou seja, em faixas de valores (intervalos), com critérios de metrificação dos indicadores para auferir os níveis de maturidade tanto para a camada preparação (Fundação e Engajamento) como para gestão e governança municipal (1 a 5).",
     ],
   },
   {
@@ -116,7 +128,7 @@ const topics = [
     icon: ScanText,
     title: "Caracterizações",
     paragraphs: [
-      "Um conjunto de indicadores distribuídos em tópicos são utilizados para descrição dos perfis sociodemográfico, transformação digital e institucional da cidade. Estes indicadores são chamados de caracterização, e não são utilizados para atribuir um nível de maturidade. Abaixo são apresentados os tópicos das Caracterizações.",
+      "Um conjunto de indicadores distribuídos em tópicos são utilizados para descrição dos perfis sociodemográficos, transformação digital, território e ambiente e institucional das cidades. Estes indicadores são chamados de caracterização, e não são utilizados para atribuir um nível de maturidade.",
     ],
   },
   {
@@ -134,7 +146,7 @@ const topics = [
     icon: Landmark,
     title: "Cadastro da Prefeitura",
     paragraphs: [
-      "Para ter acesso à plataforma, aos formulários auto declaratórios e ao painel de resultados, o Prefeito da cidade realiza o cadastro em https://inteligente.mcti.gov.br, pelo Gov.br, inserindo as informações solicitadas. A equipe de suporte valida o cadastro e libera o primeiro acesso, a partir daí o Prefeito pode cadastrar mais cinco assessores para auxiliar no gerenciamento da área exclusiva da Prefeitura.",
+      "Para ter acesso à plataforma, aos formulários auto declaratórios e ao painel de resultados, o Prefeito da cidade realiza o cadastro em https://iarainteligente.icmc.usp.br, pelo Gov.br, inserindo as informações solicitadas. A equipe de suporte valida o cadastro e libera o primeiro acesso, a partir daí o Prefeito pode cadastrar mais cinco assessores para auxiliar no gerenciamento da área exclusiva da Prefeitura.",
     ],
   },
 ];
@@ -240,6 +252,22 @@ const Methodology = () => {
                       </li>
                     ))}
                   </ul>
+                )}
+
+                {selectedTopic.id === "niveis" && (
+                  <img
+                    src="/piramide_maturidade.png"
+                    alt="Pirâmide dos níveis de maturidade"
+                    className="mx-auto mt-8 h-auto w-full max-w-3xl"
+                  />
+                )}
+
+                {selectedTopic.id === "dimensoes" && (
+                  <img
+                    src="/dimensoes.png"
+                    alt="Dimensões da metodologia"
+                    className="mx-auto mt-8 h-auto w-full max-w-3xl"
+                  />
                 )}
               </div>
             </article>

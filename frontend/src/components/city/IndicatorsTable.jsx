@@ -14,11 +14,34 @@ import {
   YAxis,
 } from "recharts";
 import MunicipalityName from "@/components/common/MunicipalityName";
+import IndicatorMaturityRanges, { hasMaturityRule } from "./IndicatorMaturityRanges";
 import { exportSectionPdf } from "@/lib/pdf/exportSectionPdf";
 import { useI18n } from "@/lib/i18n";
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const isValidLevel = (value) => Number.isFinite(value) && value >= 1 && value <= 7;
+const getDisplayedLevel = (value) => {
+  const level = Number(value);
+  if (!isValidLevel(level)) return "—";
+  const label = [
+    "Fundação",
+    "Engajamento",
+    "Nível 1",
+    "Nível 2",
+    "Nível 3",
+    "Nível 4",
+    "Nível 5",
+  ][Math.round(level) - 1];
+  return label;
+};
+const getDisplayedAverageLevel = (value) => {
+  const level = Number(value);
+  if (!isValidLevel(level)) return "—";
+  const lowerLevel = Math.floor(level);
+  const upperLevel = Math.ceil(level);
+  if (lowerLevel === upperLevel) return getDisplayedLevel(level);
+  return `${getDisplayedLevel(lowerLevel)}–${getDisplayedLevel(upperLevel)}`;
+};
 
 export const calculateTopicScore = (items, topicIndicatorWeights = {}) => {
   const weightedLevels = items
@@ -420,7 +443,7 @@ const IndicatorsTable = ({
                                       className="shrink-0 rounded-full bg-[#f4f7fb] px-2 py-0.5 text-[11px] font-semibold"
                                       style={{ color: getMaturityLevelTextColor(card.level) }}
                                     >
-                                      {card.level}/7
+                                      {getDisplayedLevel(card.level)}
                                     </span>
                                   </div>
 
@@ -496,10 +519,7 @@ const IndicatorsTable = ({
                             <Tooltip
                               cursor={{ fill: "rgba(61,132,216,0.06)" }}
                               formatter={(value, _name, item) => [
-                                `${Number(value).toLocaleString("pt-BR", {
-                                  minimumFractionDigits: 1,
-                                  maximumFractionDigits: 1,
-                                })}/7`,
+                                getDisplayedAverageLevel(value),
                                 `${t("Nível médio")} · ${item?.payload?.indicatorCount || 0} ${t("Indicadores").toLocaleLowerCase()}`,
                               ]}
                               labelFormatter={(label) => label}
@@ -511,10 +531,7 @@ const IndicatorsTable = ({
                                 strokeDasharray="4 4"
                                 strokeWidth={1.5}
                                 label={{
-                                  value: topicChartAverage.toLocaleString("pt-BR", {
-                                    minimumFractionDigits: 1,
-                                    maximumFractionDigits: 1,
-                                  }),
+                                  value: getDisplayedAverageLevel(topicChartAverage),
                                   position: "top",
                                   fill: "#2d7fd3",
                                   fontSize: 10,
@@ -534,12 +551,7 @@ const IndicatorsTable = ({
                                 position="right"
                                 fill="#34445a"
                                 fontSize={9}
-                                formatter={(value) =>
-                                  Number(value).toLocaleString("pt-BR", {
-                                    minimumFractionDigits: 1,
-                                    maximumFractionDigits: 1,
-                                  })
-                                }
+                                formatter={getDisplayedAverageLevel}
                               />
                             </Bar>
                           </BarChart>
@@ -644,7 +656,7 @@ const IndicatorsTable = ({
                     {groupedIndicators.map((group) => {
                       const isSelected = group.contentId === selectedGroup?.contentId;
                       const hasTopicLevel = isValidLevel(Number(group.topicLevel));
-                      const topicLevelValue = hasTopicLevel ? Number(group.topicLevel) : "—";
+                      const topicLevelValue = hasTopicLevel ? getDisplayedLevel(group.topicLevel) : "—";
 
                       return (
                         <button
@@ -724,7 +736,7 @@ const IndicatorsTable = ({
                     >
                       {groupedIndicators.map((group) => (
                         <option key={group.contentId} value={group.contentId}>
-                          {t(getSubtopicLabel(group.topic))} · {isValidLevel(Number(group.topicLevel)) ? Number(group.topicLevel) : "N/D"}
+                          {t(getSubtopicLabel(group.topic))} · {isValidLevel(Number(group.topicLevel)) ? getDisplayedLevel(group.topicLevel) : "N/D"}
                         </option>
                       ))}
                     </select>
@@ -771,14 +783,14 @@ const IndicatorsTable = ({
                       <span
                         aria-label={
                           isValidLevel(Number(group.topicLevel))
-                            ? `Nível do tópico ${Number(group.topicLevel)} de 7`
+                            ? `Nível do tópico ${getDisplayedLevel(group.topicLevel)}`
                             : "Nível do tópico não disponível"
                         }
                         className="shrink-0 rounded-full bg-[#e7f0ff] px-3 py-1 text-xs font-semibold text-[#245fae]"
                       >
                         <span aria-hidden="true">
                           {isValidLevel(Number(group.topicLevel))
-                            ? Number(group.topicLevel)
+                            ? getDisplayedLevel(group.topicLevel)
                             : "—"}
                         </span>
                       </span>
@@ -791,9 +803,10 @@ const IndicatorsTable = ({
                 const level = Number(item.level);
                 const hasLevel = isValidLevel(level);
                 const safeLevel = hasLevel ? Math.round(level) : 0;
+                const displayedLevel = hasLevel ? getDisplayedLevel(safeLevel) : "—";
                 const levelCardColor = hasLevel ? INDICATOR_LEVEL_COLORS[safeLevel] : null;
                 const sources = getUniqueSources(item.variableSources);
-                const hasTooltipContent = Boolean(item.description) || sources.length > 0;
+                const hasTooltipContent = Boolean(item.description) || sources.length > 0 || hasMaturityRule(item.id);
                 const isTextValue = Boolean(item.valueIsText);
 
                 return (
@@ -814,7 +827,7 @@ const IndicatorsTable = ({
                             </p>
 
                             {hasTooltipContent && (
-                              <span className="group relative mt-0.5 inline-flex shrink-0">
+                              <span className="group relative mt-0.5 inline-flex shrink-0 after:absolute after:inset-x-0 after:top-full after:h-2">
                                 <button
                                   type="button"
                                   aria-label={`Informações sobre ${item.label || "indicador"}`}
@@ -822,9 +835,12 @@ const IndicatorsTable = ({
                                 >
                                   <Info className="h-4 w-4" strokeWidth={2.3} />
                                 </button>
-                                <span className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-md border border-[#d7e4f5] bg-white px-3 py-2 text-xs leading-relaxed text-[#425a78] opacity-0 shadow-[0_8px_24px_rgba(23,52,95,0.16)] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:left-0 sm:right-auto">
+                                <span className="pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto max-h-[min(32rem,70vh)] overflow-y-auto absolute right-0 top-full z-30 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-md border border-[#d7e4f5] bg-white px-3 py-2 text-xs leading-relaxed text-[#425a78] opacity-0 shadow-[0_8px_24px_rgba(23,52,95,0.16)] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:left-0 sm:right-auto">
                                   {item.description && (
-                                    <span className="block">{t(item.description)}</span>
+                                    <span className="block">
+                                      <span className="mb-1 block font-semibold text-[#1f2d3d]">{t("Descrição")}</span>
+                                      {t(item.description)}
+                                    </span>
                                   )}
                                   {sources.length > 0 && (
                                     <span className={item.description ? "mt-2 block" : "block"}>
@@ -832,6 +848,7 @@ const IndicatorsTable = ({
                                       {sources.join("; ")}
                                     </span>
                                   )}
+                                  <IndicatorMaturityRanges indicatorId={item.id} level={item.level} />
                                 </span>
                               </span>
                             )}
@@ -843,7 +860,7 @@ const IndicatorsTable = ({
 
                         <div className="flex items-start lg:justify-end">
                           <span
-                            aria-label={hasLevel ? `Nível de maturidade ${safeLevel} de 7` : "Nível de maturidade não disponível"}
+                            aria-label={hasLevel ? `Nível de maturidade ${displayedLevel}` : "Nível de maturidade não disponível"}
                             className={`inline-flex h-12 min-w-12 shrink-0 items-center justify-center rounded-[14px] border bg-white px-3 text-xl font-semibold leading-none shadow-[0_1px_3px_rgba(30,64,105,0.08)] ${hasLevel ? "" : "border-[#d6dee8] text-[#6b7c93]"}`}
                             style={
                               hasLevel
@@ -854,7 +871,7 @@ const IndicatorsTable = ({
                                 : undefined
                             }
                           >
-                            <span aria-hidden="true">{hasLevel ? safeLevel : "—"}</span>
+                            <span aria-hidden="true">{displayedLevel}</span>
                           </span>
                         </div>
                       </div>
@@ -867,7 +884,7 @@ const IndicatorsTable = ({
                             </p>
 
                             {hasTooltipContent && (
-                              <span className="group relative mt-0.5 inline-flex shrink-0">
+                              <span className="group relative mt-0.5 inline-flex shrink-0 after:absolute after:inset-x-0 after:top-full after:h-2">
                                 <button
                                   type="button"
                                   aria-label={`Informações sobre ${item.label || "indicador"}`}
@@ -875,9 +892,12 @@ const IndicatorsTable = ({
                                 >
                                   <Info className="h-4 w-4" strokeWidth={2.3} />
                                 </button>
-                                <span className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-md border border-[#d7e4f5] bg-white px-3 py-2 text-xs leading-relaxed text-[#425a78] opacity-0 shadow-[0_8px_24px_rgba(23,52,95,0.16)] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:left-0 sm:right-auto">
+                                <span className="pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto max-h-[min(32rem,70vh)] overflow-y-auto absolute right-0 top-full z-30 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-md border border-[#d7e4f5] bg-white px-3 py-2 text-xs leading-relaxed text-[#425a78] opacity-0 shadow-[0_8px_24px_rgba(23,52,95,0.16)] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:left-0 sm:right-auto">
                                   {item.description && (
-                                    <span className="block">{t(item.description)}</span>
+                                    <span className="block">
+                                      <span className="mb-1 block font-semibold text-[#1f2d3d]">{t("Descrição")}</span>
+                                      {t(item.description)}
+                                    </span>
                                   )}
                                   {sources.length > 0 && (
                                     <span className={item.description ? "mt-2 block" : "block"}>
@@ -885,6 +905,7 @@ const IndicatorsTable = ({
                                       {sources.join("; ")}
                                     </span>
                                   )}
+                                  <IndicatorMaturityRanges indicatorId={item.id} level={item.level} />
                                 </span>
                               </span>
                             )}
@@ -896,7 +917,7 @@ const IndicatorsTable = ({
 
                         <div className="flex items-start lg:justify-end">
                           <span
-                            aria-label={hasLevel ? `Nível de maturidade ${safeLevel} de 7` : "Nível de maturidade não disponível"}
+                            aria-label={hasLevel ? `Nível de maturidade ${displayedLevel}` : "Nível de maturidade não disponível"}
                             className={`inline-flex h-12 min-w-12 shrink-0 items-center justify-center rounded-[14px] border bg-white px-3 text-xl font-semibold leading-none shadow-[0_1px_3px_rgba(30,64,105,0.08)] ${hasLevel ? "" : "border-[#d6dee8] text-[#6b7c93]"}`}
                             style={
                               hasLevel
@@ -907,7 +928,7 @@ const IndicatorsTable = ({
                                 : undefined
                             }
                           >
-                            <span aria-hidden="true">{hasLevel ? safeLevel : "—"}</span>
+                            <span aria-hidden="true">{displayedLevel}</span>
                           </span>
                         </div>
                       </div>
