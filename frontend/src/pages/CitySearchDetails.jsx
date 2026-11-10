@@ -1709,7 +1709,7 @@ const CitySearchDetails = () => {
   };
   const renderCharacterizationCards = (cards, gridClass = "md:grid-cols-2 lg:grid-cols-4") => (
     <div className={`grid grid-cols-1 gap-4 ${gridClass}`}>
-      {cards.map((card, index) => (
+      {cards.map((card) => (
         <article
           key={card.id}
           className="min-h-[148px] rounded-2xl border border-[#e3e9f2] bg-white p-5"
@@ -1723,19 +1723,13 @@ const CitySearchDetails = () => {
           </div>
           <div className="mt-5 flex flex-wrap items-end gap-3">
             <span
-              className={`block font-semibold ${
-                card.id === "4038"
-                  ? "w-full text-[20px] leading-none text-[#0f172a]"
-                  : card.valueIsText
-                    ? "text-base leading-relaxed text-[#53657d]"
-                  : `leading-none ${index === 0 ? "text-4xl" : "text-3xl"}`
+              className={`block text-3xl font-semibold leading-none ${
+                card.id === "4038" ? "w-full text-[#0f172a]" : ""
               }`}
               style={
                 card.id === "4038"
                   ? { whiteSpace: "nowrap" }
-                  : card.valueIsText
-                    ? undefined
-                    : { color: getMaturityLevelTextColor(card.level) }
+                  : { color: getMaturityLevelTextColor(card.level) }
               }
             >
               {t(card.value)}
@@ -1770,7 +1764,10 @@ const CitySearchDetails = () => {
     </div>
   );
   const sociodemographicCards = [
-    getCharacterizationCardById("3087", { title: "PIB per capita" }),
+    getCharacterizationCardById("3087", {
+      title: "PIB per capita",
+      valueFormatter: (value) => `R$ ${formatNumber(value * 1000)}`,
+    }),
     getCharacterizationCardById("4001"),
     getCharacterizationCardById("4003", { title: "População total estimada" }),
     getCharacterizationCardById("4038", {
@@ -2375,6 +2372,7 @@ const CitySearchDetails = () => {
                                       >
                                         <XAxis
                                           dataKey="month"
+                                          tickFormatter={(month) => new Intl.DateTimeFormat(language === "pt" ? "pt-BR" : language, { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, MONTH_LABELS.indexOf(month), 1)))}
                                           tick={{ fill: "#5b7596", fontSize: 12 }}
                                           axisLine={{ stroke: "#d7e4f5" }}
                                           tickLine={{ stroke: "#d7e4f5" }}
@@ -2388,9 +2386,9 @@ const CitySearchDetails = () => {
                                         <Tooltip
                                           formatter={(value) => [
                                             Number(value).toLocaleString("pt-BR"),
-                                            `Casos de ${selectedArbovirusDiseaseLabel}`,
+                                            t(`Casos de ${selectedArbovirusDiseaseLabel}`),
                                           ]}
-                                          labelFormatter={(label) => `${label}/${selectedArbovirusYear}`}
+                                          labelFormatter={(label) => `${new Intl.DateTimeFormat(language === "pt" ? "pt-BR" : language, { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, MONTH_LABELS.indexOf(label), 1)))}/${selectedArbovirusYear}`}
                                           contentStyle={{
                                             borderRadius: 8,
                                             border: "1px solid #d7e4f5",
@@ -2477,7 +2475,7 @@ const CitySearchDetails = () => {
                                           }),
                                           name,
                                         ]}
-                                        labelFormatter={(label) => `Ano ${label}`}
+                                        labelFormatter={(label) => t(`Ano ${label}`)}
                                         contentStyle={{
                                           borderRadius: 8,
                                           border: "1px solid #d7e4f5",
@@ -2486,7 +2484,7 @@ const CitySearchDetails = () => {
                                       />
                                       <Line
                                         type="monotone"
-                                        name="Média regional"
+                                        name={t("Média regional")}
                                         dataKey="mediaRegional"
                                         stroke="#7db5e8"
                                         strokeWidth={2}
@@ -2497,7 +2495,7 @@ const CitySearchDetails = () => {
                                       />
                                       <Line
                                         type="monotone"
-                                        name="Média nacional"
+                                        name={t("Média nacional")}
                                         dataKey="mediaNacional"
                                         stroke="#9ca3af"
                                         strokeWidth={2}
@@ -2572,8 +2570,8 @@ const CitySearchDetails = () => {
                                           <div>
                                             <p className="text-sm font-bold text-[#17243a]">{item.label}</p>
                                             <p className="mt-1 text-xs leading-relaxed text-[#425a78]">
-                                              {displayCityName}: {item.value.toLocaleString("pt-BR")} {item.unit}
-                                              {" · "}mediana dos vizinhos: {item.median.toLocaleString("pt-BR")} {item.unit}
+                                              {displayCityName}: {item.value.toLocaleString("pt-BR")} {t(item.unit)}
+                                              {" · "}{t("mediana dos vizinhos:")} {item.median.toLocaleString("pt-BR")} {t(item.unit)}
                                             </p>
                                           </div>
                                           <div>
@@ -2642,7 +2640,7 @@ const CitySearchDetails = () => {
                                             maximumFractionDigits: 2,
                                           })
                                         }
-                                        labelFormatter={(label) => `Ano ${label}`}
+                                        labelFormatter={(label) => t(`Ano ${label}`)}
                                         contentStyle={{
                                           borderRadius: 8,
                                           border: "1px solid #d7e4f5",
@@ -2652,7 +2650,7 @@ const CitySearchDetails = () => {
                                       <Line
                                         type="monotone"
                                         dataKey={selectedPibRegionalKey}
-                                        name="Média regional"
+                                        name={t("Média regional")}
                                         stroke="#86c6b0"
                                         strokeWidth={2}
                                         strokeOpacity={0.5}
@@ -2663,7 +2661,7 @@ const CitySearchDetails = () => {
                                       <Line
                                         type="monotone"
                                         dataKey={selectedPibNacionalKey}
-                                        name="Média nacional"
+                                        name={t("Média nacional")}
                                         stroke="#9ca3af"
                                         strokeWidth={2}
                                         strokeOpacity={0.45}

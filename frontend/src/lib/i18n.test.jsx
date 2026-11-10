@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { translateString } from "./i18n";
 
 describe("i18n", () => {
+  it.each([
+    ["en", "Outbreak expected to start in December", "dengue cases in the year", "Overall score 75 out of 100"],
+    ["fr", "Début de l'épidémie prévu en décembre", "Cas de dengue sur l'année", "Score global de 75 sur 100"],
+    ["es", "Inicio del brote previsto para diciembre", "Casos de dengue en el año", "Puntuación general de 75 sobre 100"],
+  ])("traduz mensagens dinâmicas em %s", (language, outbreak, cases, score) => {
+    expect(translateString("Início do surto previsto para dezembro", language)).toBe(outbreak);
+    expect(translateString("Casos de dengue no ano", language)).toBe(cases);
+    expect(translateString("Pontuação geral 75 de 100", language)).toBe(score);
+    expect(translateString("Descrição", language)).not.toBe("Descrição");
+  });
+
   it("traduz corretamente regiões selecionadas", () => {
     expect(translateString("Região - Sul", "en")).toBe("Region - Southern");
     expect(translateString("Região - Sul", "fr")).toBe("Région - Sud");

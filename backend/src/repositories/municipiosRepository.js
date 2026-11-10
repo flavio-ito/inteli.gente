@@ -241,13 +241,10 @@ async function listarMunicipios() {
     formularios_nao_respondidos AS (
       SELECT
         municipio_cod_ibge,
-        COUNT(*) = 29
-          AND BOOL_AND(
-            COALESCE(
-              unaccent(lower(btrim(indicador_valor_textual))) = 'sem resposta do formulario',
-              false
-            )
-          ) AS formulario_nao_respondido
+        NOT BOOL_OR(
+          NULLIF(btrim(indicador_valor_textual), '') IS NOT NULL
+          AND unaccent(lower(btrim(indicador_valor_textual))) <> 'sem resposta do formulario'
+        ) AS formulario_nao_respondido
       FROM indicadores_formulario_recentes
       GROUP BY municipio_cod_ibge
     ),
@@ -263,7 +260,7 @@ async function listarMunicipios() {
       mn.municipio_nivel,
       ri.rede_influencia,
       ri.rede_influencia_nivel,
-      COALESCE(fnr.formulario_nao_respondido, false) AS formulario_nao_respondido
+      COALESCE(fnr.formulario_nao_respondido, true) AS formulario_nao_respondido
     FROM bd.municipio m
     LEFT JOIN pop_municipio pm
       ON pm.municipio_cod_ibge = m.municipio_cod_ibge

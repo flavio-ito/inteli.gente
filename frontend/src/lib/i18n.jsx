@@ -2753,6 +2753,24 @@ export const translateString = (value, language) => {
 
   if (dictionary[key]) return `${leading}${dictionary[key]}${trailing}`;
 
+  // Match variable messages before punctuation-based fallbacks split them.
+  const messagePatterns = [
+    [/^Início do surto previsto para (.+)$/, "Início do surto previsto para {month}", ["month"]],
+    [/^Casos de (.+) no ano$/, "Casos de {disease} no ano", ["disease"]],
+    [/^Casos de (.+)$/, "Casos de {disease}", ["disease"]],
+    [/^Nível de maturidade (.+) de 5\. Preparação: F e E\. Gestão e Governança: níveis 1 a 5\.$/, "Nível de maturidade {level} de 5. Preparação: F e E. Gestão e Governança: níveis 1 a 5.", ["level"]],
+    [/^Pontuação geral (.+) de 100$/, "Pontuação geral {score} de 100", ["score"]],
+    [/^Informações sobre (.+)$/, "Informações sobre {indicator}", ["indicator"]],
+    [/^(\d+) casos$/, "{count} casos", ["count"]],
+    [/^(.+): percentil (\d+)$/, "{label}: percentil {percentile}", ["label", "percentile"]],
+  ];
+  for (const [pattern, template, parameters] of messagePatterns) {
+    const match = key.match(pattern);
+    if (!match || !dictionary[template]) continue;
+    const values = Object.fromEntries(parameters.map((name, index) => [name, translateString(match[index + 1], language)]));
+    return `${leading}${dictionary[template].replace(/\{(\w+)\}/g, (_, name) => values[name])}${trailing}`;
+  }
+
   const respondentMapMatch = key.match(/^(.*?) — municípios respondentes$/);
   if (respondentMapMatch) {
     const translatedTitle = translateString(respondentMapMatch[1], language);

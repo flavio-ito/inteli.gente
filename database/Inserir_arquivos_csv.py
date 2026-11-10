@@ -740,6 +740,5 @@ def executar_etl_csv(caminho_csv: str, entidade: str, separador=";", encoding="u
 #######
 
 if __name__ == "__main__":
-    caminho_csv = os.path.join(os.path.dirname(os.path.abspath(__file__)), "GTA1009.csv")
+    caminho_csv = os.path.join(os.path.dirname(os.path.abspath(__file__)), "MTIC12b13.csv")
     executar_etl_csv(caminho_csv, "municipio_apresenta_variavel", separador=";")
-

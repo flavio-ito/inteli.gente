@@ -254,9 +254,11 @@ const BrazilMap = ({
     showMunicipiosMaturityMap && maturityFocusedState != null;
   const showMaturityMunicipiosMap =
     showMunicipiosMaturityMap &&
-    (maturityFocusedState != null || hasState || hasRegion);
+    (restrictToProvidedMunicipios || maturityFocusedState != null || hasState || hasRegion);
   const showRegionalStateMap =
-    !(
+    restrictToProvidedMunicipios
+      ? !(hasState || hasRegion || hasInfluence || showMunicipiosMaturityMap)
+      : !(
       showMunicipalitiesForGeographicFilter &&
       (hasState || hasRegion)
     ) &&
@@ -453,7 +455,9 @@ const BrazilMap = ({
 
   const filteredEstadosGeo = useMemo(() => {
     if (!estadosWithRegion) return null;
-    if (!hasRegion && !hasState && !hasInfluence) return estadosWithRegion;
+    if (!hasRegion && !hasState && !hasInfluence && !restrictToProvidedMunicipios) {
+      return estadosWithRegion;
+    }
 
     return {
       ...estadosWithRegion,
@@ -470,7 +474,10 @@ const BrazilMap = ({
         const matchesInfluence =
           !hasInfluence || (allowedUfByCurrentMunicipioFilter?.has(sigla) ?? false);
 
-        return matchesRegion && matchesState && matchesInfluence;
+        const hasProvidedMunicipios =
+          !restrictToProvidedMunicipios || feature.properties.municipiosCount > 0;
+
+        return matchesRegion && matchesState && matchesInfluence && hasProvidedMunicipios;
       }),
     };
   }, [
@@ -481,6 +488,7 @@ const BrazilMap = ({
     selectedState,
     hasInfluence,
     allowedUfByCurrentMunicipioFilter,
+    restrictToProvidedMunicipios,
   ]);
 
   const stateLabels = useMemo(() => {

@@ -35,7 +35,7 @@ const stateNames = {
   TO: "Tocantins",
 };
 
-const MUNICIPIOS_CACHE_KEY = "inteligente:municipios:v5";
+const MUNICIPIOS_CACHE_KEY = "inteligente:municipios:v6";
 const MUNICIPIOS_CACHE_TTL_MS = 30 * 60 * 1000;
 const CITY_SCOPE_ALL = "todos";
 const CITY_SCOPE_RESPONDED = "respondentes";
